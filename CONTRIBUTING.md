@@ -59,6 +59,11 @@ of [interface-matrix](https://github.com/macblackstuff/interface-matrix), pinned
 `scripts/interface_matrix.UPSTREAM`. Do not edit them here: the `pin` check fails. Fix the matrix
 upstream first, then re-vendor its new release in a pull request that updates the pins.
 
+## Code of conduct
+
+This project follows the [Contributor Covenant 2.1](CODE_OF_CONDUCT.md). Report unacceptable
+behaviour to [conduct@macblackstuff.com](mailto:conduct@macblackstuff.com).
+
 ## License
 
 By contributing you agree that your contribution is licensed under the [MIT License](LICENSE).
