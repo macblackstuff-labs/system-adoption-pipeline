@@ -112,7 +112,5 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.x"
-      - name: install with the skills CLI and run the skill from the installed copy
-        run: |
-          .github/scripts/smoke-install.sh claude-code codex cursor gemini-cli \
-            github-copilot opencode
+      - name: skills CLI install smoke test (all agents)
+        run: .github/scripts/smoke-install.sh

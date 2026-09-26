@@ -96,8 +96,8 @@ pass 4 turns into a register entry.
 | Cursor | `npx skills add macblackstuff/system-adoption-pipeline -a cursor -y` | Verified in CI. |
 | Any harness that reads `skills/` from disk | Copy [`skills/system-adoption-pipeline`](skills/system-adoption-pipeline) into where your agent reads skills from | Every path inside the skill is relative to its own folder, so the destination does not matter. |
 
-The [`skills` CLI](https://github.com/vercel-labs/skills) also covers `gemini-cli`,
-`github-copilot` and `opencode`, which CI installs and tests the same way.
+The [`skills` CLI](https://github.com/vercel-labs/skills) covers 79 agents in all, and CI
+installs and tests every one of them the same way — see [Harnesses tested](#harnesses-tested).
 
 Verify any copy with its self-check, run from inside the installed skill folder:
 
@@ -186,12 +186,83 @@ are human work.
 ## Harnesses tested
 
 CI installs the skill with the `skills` CLI on every push and pull request, once per agent in its
-own throwaway home, and runs the skill's own checks from each installed copy. Six agents are
-covered: `claude-code`, `codex`, `cursor`, `gemini-cli`, `github-copilot` and `opencode`. Five of
-the six share one user-level skills directory (the `skills` CLI decides the target; see its
-documentation for each agent's path), so on a real machine a single installed copy can serve all
-five. CI still installs and tests each agent separately, so a change to any one agent's target is
-caught.
+own throwaway home, and runs the skill's own self-tests from each installed copy. Every agent the
+CLI supports is covered — 79 agents with `skills` 1.7.0 — and the list is read from the CLI at run
+time, so agents added by a future CLI release are tested automatically without editing this repo.
+
+Two of the 79 are documented exceptions, listed in
+[`.github/scripts/smoke-install.sh`](.github/scripts/smoke-install.sh): `eve` and `promptscript`,
+which the CLI reports do not support global skill installation. Every other agent must install and
+pass, so nothing is silently skipped; the job ends with a `<N> of <M> agents installed and tested`
+line.
+
+Many agents share a user-level skills directory, so on a real machine one installed copy serves all
+of them. CI still installs and tests each agent separately, so a change to any one agent's target
+is caught. The targets, from a real run:
+
+| Global install path (under `~`) | Agents |
+|---|---|
+| `.agents/skills/` | `amp`, `antigravity`, `antigravity-cli`, `cline`, `codex`, `cursor`, `deepagents`, `dexto`, `droid`, `firebender`, `gemini-cli`, `github-copilot`, `kilo`, `kimi-code-cli`, `loaf`, `opencode`, `replit`, `sarvam-code`, `universal`, `warp`, `zed` |
+| `.zencoder/skills/` | `zencoder`, `zenflow` |
+| `.adal/skills/` | `adal` |
+| `.aider-desk/skills/` | `aider-desk` |
+| `.astrbot/data/skills/` | `astrbot` |
+| `.augment/skills/` | `augment` |
+| `.autohand/skills/` | `autohand-code` |
+| `.bob/skills/` | `bob` |
+| `.claude/skills/` | `claude-code` |
+| `.codeartsdoer/skills/` | `codearts-agent` |
+| `.codebuddy/skills/` | `codebuddy` |
+| `.codeium/windsurf/skills/` | `windsurf` |
+| `.codemaker/skills/` | `codemaker` |
+| `.codestudio/skills/` | `codestudio` |
+| `.commandcode/skills/` | `command-code` |
+| `.config/crush/skills/` | `crush` |
+| `.config/devin/skills/` | `devin` |
+| `.config/goose/skills/` | `goose` |
+| `.config/kimchi/harness/skills/` | `kimchi` |
+| `.continue/skills/` | `continue` |
+| `.forge/skills/` | `forgecode` |
+| `.fx/skills/` | `fx` |
+| `.grok/skills/` | `grok` |
+| `.hermes/skills/` | `hermes-agent` |
+| `.iflow/skills/` | `iflow-cli` |
+| `.inferencesh/skills/` | `inference-sh` |
+| `.jazz/skills/` | `jazz` |
+| `.junie/skills/` | `junie` |
+| `.kiro/skills/` | `kiro-cli` |
+| `.kode/skills/` | `kode` |
+| `.lingma/skills/` | `lingma` |
+| `.mcpjam/skills/` | `mcpjam` |
+| `.minimax/skills/` | `minimax-code` |
+| `.moxby/skills/` | `moxby` |
+| `.mux/skills/` | `mux` |
+| `.neovate/skills/` | `neovate` |
+| `.ona/skills/` | `ona` |
+| `.openclaw/skills/` | `openclaw` |
+| `.openhands/skills/` | `openhands` |
+| `.pi/agent/skills/` | `pi` |
+| `.pochi/skills/` | `pochi` |
+| `.posit/assistant/skills/` | `posit-assistant` |
+| `.qoder-cn/skills/` | `qoder-cn` |
+| `.qoder/skills/` | `qoder` |
+| `.qwen/skills/` | `qwen-code` |
+| `.reasonix/skills/` | `reasonix` |
+| `.roo/skills/` | `roo` |
+| `.rovodev/skills/` | `rovodev` |
+| `.snowflake/cortex/skills/` | `cortex` |
+| `.tabnine/agent/skills/` | `tabnine-cli` |
+| `.terramind/skills/` | `terramind` |
+| `.tinycloud/skills/` | `tinycloud` |
+| `.trae-cn/skills/` | `trae-cn` |
+| `.trae/skills/` | `trae` |
+| `.vibe/skills/` | `mistral-vibe` |
+| `.zcode/skills/` | `zcode` |
+
+What this proves: the skill installs for each agent and its own self-tests
+(`scripts/test_check_plan.py` and `scripts/test_interface_matrix.py`, with and without `python3
+-O`) pass from the installed copy. What it does not prove: how any given agent behaves at run time
+when it loads the skill — that is each agent's own runtime, which CI does not exercise.
 
 The skill itself is harness-neutral and names no harness-specific tooling.
 
