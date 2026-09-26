@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Copyright holder in `LICENSE` and the README is now `macblackstuff`.
+
 ## 0.2.1 — 2026-09-27
 
 - Moved to [github.com/macblackstuff/system-adoption-pipeline](https://github.com/macblackstuff/system-adoption-pipeline);

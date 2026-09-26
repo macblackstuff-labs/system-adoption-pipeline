@@ -78,4 +78,4 @@ file in and update the pin's `sha256` in the same commit.
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE). Copyright (c) 2026 macblackstuff-labs.
+MIT — see [`LICENSE`](LICENSE). Copyright (c) 2026 macblackstuff.
