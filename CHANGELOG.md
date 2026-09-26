@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Copyright holder in `LICENSE` and the README is now `macblackstuff`.
+- Code of conduct (Contributor Covenant 2.1); reports go to `conduct@macblackstuff.com`.
 
 ## 0.2.1 — 2026-09-27
 
