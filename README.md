@@ -1,5 +1,10 @@
 # system-adoption-pipeline
 
+[![Tests](https://github.com/macblackstuff-labs/system-adoption-pipeline/actions/workflows/tests.yml/badge.svg)](https://github.com/macblackstuff-labs/system-adoption-pipeline/actions/workflows/tests.yml)
+[![Release](https://img.shields.io/github/v/release/macblackstuff-labs/system-adoption-pipeline)](https://github.com/macblackstuff-labs/system-adoption-pipeline/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/macblackstuff-labs/system-adoption-pipeline)](LICENSE)
+[![Agent Skill](https://img.shields.io/badge/Agent_Skill-agentskills.io-blue)](https://agentskills.io/specification)
+
 An [Agent Skill](https://agentskills.io/specification) that turns a narrative description of
 a large system — a transcript, a talk, a book chapter, a competitor teardown — into an
 ordered, gap-closed build plan, through seven passes: extract → complete → interface matrix

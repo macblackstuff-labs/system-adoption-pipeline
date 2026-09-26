@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/macblackstuff-labs/system-adoption-pipeline/security/advisories/new
+    about: Report privately through GitHub. Never in a public issue.
+  - name: Wrong interface matrix (pass 3)
+    url: https://github.com/macblackstuff-labs/interface-matrix/issues/new/choose
+    about: The pass-3 script is vendored from interface-matrix. Matrix bugs are fixed there first.
