@@ -52,12 +52,13 @@ counts it as unresolved nor blocks a step on it.
 
 2. **Run pass 3.**
    ```bash
-   python3 scripts/interface_matrix.py MATRIX-INPUT.md > matrix-report.md
-   python3 scripts/interface_matrix.py MATRIX-INPUT.md --sample 0
-   python3 scripts/interface_matrix.py MATRIX-INPUT.md --source SOURCE.txt
+   python3 scripts/interface_matrix.py matrix-input.md > matrix-report.md
+   python3 scripts/interface_matrix.py matrix-input.md --sample 0
+   python3 scripts/interface_matrix.py matrix-input.md --source SOURCE.txt
    ```
-   Exit 0 = report written. Exit 1 = a bad input row, named by input line. The input
-   format and the report sections are in `MATRIX-INPUT.md`, beside this file.
+   `matrix-input.md` is your own file — name it whatever you like. Exit 0 = report written.
+   Exit 1 = a bad input row, named by input line. The input format and the report sections
+   are documented in the reference `references/MATRIX-INPUT.md`, beside this file.
 
 3. **Run pass 7.**
    ```bash

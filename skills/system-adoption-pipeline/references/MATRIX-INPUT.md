@@ -3,9 +3,20 @@
 The input to `scripts/interface_matrix.py` is one Markdown file with a Components table and
 an Interfaces table, plus an optional Rules table. A table is a header row followed by a
 `|---|` separator row. A table is read as ours when its header (case-insensitive) shares at
-least two names with that table's column set, so a misnamed required column is an error, not
-a silently skipped table. Everything else in the file — frontmatter, prose, other tables — is
-ignored. Column order does not matter; the header names do.
+least two names with that table's **required** columns — the optional names (`Class`,
+`Status`, `Source`) never count, and the Rules table additionally needs both
+`Producer class` and `Consumer class`. Everything else in the file — frontmatter, prose,
+other tables — is ignored. Column order does not matter; the header names do.
+
+Once a table is claimed, any missing required column is an error naming it, e.g.
+`| Component | Kindx | Notes |` exits 1 with `table at line 3 is missing column(s): kind`.
+But a header that keeps **fewer than two** required names is not claimed at all: it is
+skipped silently, with no stderr and exit 0. A second components table headed
+`| Componnt | Kindd | Class | Notes | Status |` matches only `notes`, so it is dropped —
+its rows never reach the matrix and the "second Components table" error never fires.
+**After every run, check the report's `components: N` and `specified interfaces: N` counts
+against what you wrote.** A count lower than your rows is the only signal that a table was
+skipped.
 
 ```markdown
 ## Components
@@ -57,7 +68,9 @@ Required columns: `Producer`, `Consumer`, `Flows`, `Format`, `Trigger`, `Owner`.
   graph and listed for you to resolve.
 - Cite the source for every cell you can (`S:Lnn`, doc path, ticket). An uncited cell is a
   claim the reviewer has to re-derive.
-- A `Status` beginning `superseded` retires the row. One Interfaces table per file.
+- A `Status` beginning `superseded` retires the row.
+- One Interfaces table per file. A second one exits 1, naming both header lines — addenda go
+  in the first table, below its existing rows.
 
 ## Rules (optional)
 
