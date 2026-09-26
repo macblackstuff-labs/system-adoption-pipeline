@@ -23,8 +23,9 @@ decomposed to atomic steps, later waves stay at package level.
 | S2 | 1 | Run the scorer once over ten real records | C1 | IF1 | G3 | no | one score file written |
 
 - Steps are verb-led, ≤2 hours, exactly one acceptance check, no open decision embedded.
-- `Gaps` lists the pass-4 gap ids the step depends on. If one of them is an open USER
-  gap, `Blocked` must say `yes`.
+- `Gaps` lists the pass-4 gap ids the step depends on, and may also name an upstream
+  wave-1 step id. If one of them is an open USER gap or a step labelled BLOCKED, `Blocked`
+  must say `yes`. Pass 7 prints an advisory count of BLOCKED wave-1 steps.
 - `Wave` is the wave number; only wave-1 rows are checked for acceptance checks.
 
 ## Feedback loops the order respects

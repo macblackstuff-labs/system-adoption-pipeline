@@ -11,6 +11,9 @@ questions the tooling would have answered.
   and not a reversible design choice. Everything else is DEFAULT.
 - **DEFAULT** — a safe, reversible default exists. State it and the revisit trigger.
 
+One row may cover a whole field class when one rule answers it (e.g. "`Owner` of every
+interface = its producer", DEFAULT) — state the rule; one row per field is not required.
+
 At most 10 USER questions, batched in one list, each with a recommended answer.
 After this pass defaults are frozen; they change only via their named revisit trigger.
 
@@ -32,5 +35,6 @@ After this pass defaults are frozen; they change only via their named revisit tr
 |---|---|---|
 | G2 |  |  |
 
-Done-check: every SILENT field and interface gap has exactly one class; USER rows ≤ 10,
+Done-check: every hot spot, SILENT field and interface gap has exactly one class (alone
+or through a field-class row) or, for a hot spot, a stated reason for closing it; USER rows ≤ 10,
 each with a recommended answer; every DEFAULT names its revisit trigger.

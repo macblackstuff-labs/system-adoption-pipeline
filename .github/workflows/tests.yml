@@ -29,7 +29,7 @@ jobs:
         run: |
           imports=$(grep -hE '^(import|from) ' scripts/check_plan.py scripts/interface_matrix.py | sort -u)
           echo "$imports"
-          if echo "$imports" | grep -vE '^(import|from) (argparse|graphlib|re|sys)\b'; then
+          if echo "$imports" | grep -vE '^(import|from) (argparse|difflib|graphlib|re|sys)\b'; then
             echo "::error::a third-party import is a defect: standard library only"
             exit 1
           fi
@@ -47,6 +47,12 @@ jobs:
           awk '$1 == "path" { p = $2 } $1 == "sha256" { print p, $2 }' \
             scripts/interface_matrix.UPSTREAM > /tmp/pins
           test -s /tmp/pins
+          # two pins with one basename would both check the same local file
+          dups=$(while read -r path _; do basename "$path"; done < /tmp/pins | sort | uniq -d)
+          if [ -n "$dups" ]; then
+            echo "::error::pins share a basename, so they would check one file: $dups"
+            exit 1
+          fi
           fail=0
           while read -r path pinned; do
             file="scripts/$(basename "$path")"

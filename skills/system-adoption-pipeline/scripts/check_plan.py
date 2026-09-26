@@ -114,6 +114,10 @@ def blank(cell):
     return not real_id(cell)
 
 
+def is_blocked(step):
+    return step["blocked"].strip().lower() in ("yes", "blocked", "true")
+
+
 # ---------------------------------------------------------------- checks
 
 class Result:
@@ -166,27 +170,36 @@ def run(inventory, interfaces, gaps, packages, ordering):
 
     # 2 — every interface has a producer and a consumer somewhere in the plan (any package
     # or step, so a later-wave interface is covered). A plan with packages but no wave-1
-    # steps is caught by check 3, not here.
-    bad, built = [], 0
+    # steps is caught by check 3, not here. An endpoint the inventory does not know is a
+    # pass-3 defect and is named as one. An interface between two externals builds nothing:
+    # it is exempt and not counted as built.
+    bad, built, ext_only = [], 0, 0
     for r in interfaces:
+        ends = {role: ids(r[role]) for role in ("producer", "consumer")}
+        if all(ends.values()) and all(e in external for v in ends.values() for e in v):
+            ext_only += 1
+            continue
         ends_built = True
-        for role in ("producer", "consumer"):
-            endpoints = ids(r[role])
+        for role, endpoints in ends.items():
             if not endpoints:
                 bad.append("interface %s has no %s" % (r["id"], role))
                 ends_built = False
             for endpoint in endpoints:
                 if endpoint in external:
                     continue
-                if endpoint not in covered:
+                if endpoint not in components:
+                    bad.append("interface %s: %s %s is not in the inventory (fix it in pass 3)"
+                               % (r["id"], role, endpoint))
+                    ends_built = False
+                elif endpoint not in covered:
                     bad.append("interface %s: %s %s is in no package and no step"
                                % (r["id"], role, endpoint))
                     ends_built = False
         if ends_built:
             built += 1
     res.add("2 interface endpoints", not bad,
-            "%d of %d interfaces have both endpoints built"
-            % (built, len(interfaces)),
+            "%d of %d interfaces have both endpoints built; %d external-to-external exempt"
+            % (built, len(interfaces) - ext_only, ext_only),
             bad)
 
     # 3 — there is a wave 1, and every wave-1 step has an acceptance check
@@ -199,17 +212,32 @@ def run(inventory, interfaces, gaps, packages, ordering):
                 "%d of %d wave-1 steps carry an acceptance check"
                 % (len(wave1) - len(no_check), len(wave1)),
                 ["step %s has no acceptance check" % s for s in no_check])
+    blocked = [r["step"] for r in wave1 if is_blocked(r)]
+    if blocked:
+        # advisory, not a failure: the skeleton cannot run end to end until these clear
+        res.lines.append("  advisory: %d of %d wave-1 steps are BLOCKED (%s); the walking "
+                         "skeleton cannot run end to end until they clear"
+                         % (len(blocked), len(wave1), ", ".join(blocked)))
 
     # 4 — no wave-1 step depends on an unresolved USER gap unless labelled BLOCKED
     open_user = {r["id"] for r in gaps
                  if r["class"].strip().upper() == "USER" and real_id(r["id"])
                  and r["status"].strip().lower() != "resolved"}
+    # A step id in the `Gaps` cell names an upstream step: depending on a BLOCKED one
+    # blocks this one too.
+    blocked_steps = {r["step"] for r in wave1 if is_blocked(r)}
     offenders = []
     for r in wave1:
+        if is_blocked(r):
+            continue
         depends = [g for g in ids(r["gaps"]) if g in open_user]
-        if depends and r["blocked"].strip().lower() not in ("yes", "blocked", "true"):
+        if depends:
             offenders.append("step %s depends on unresolved USER gap %s and is not labelled BLOCKED"
                              % (r["step"], ", ".join(depends)))
+        upstream = [g for g in ids(r["gaps"]) if g in blocked_steps]
+        if upstream:
+            offenders.append("step %s depends on BLOCKED step %s and is not labelled BLOCKED"
+                             % (r["step"], ", ".join(upstream)))
     res.add("4 wave-1 user gaps", not offenders,
             "%d unresolved USER gap(s); %d wave-1 step(s) depend on one without BLOCKED"
             % (len(open_user), len(offenders)), offenders)
