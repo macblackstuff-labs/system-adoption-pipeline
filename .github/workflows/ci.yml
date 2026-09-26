@@ -1,0 +1,13 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    # Not sha-pinned: this is our own org's reusable workflow, and it is the one place we want
+    # a shared change to reach every repo without a bump PR here. Third-party actions are
+    # pinned to commit shas in tests.yml.
+    uses: macblackstuff-labs/.github/.github/workflows/ci-reusable.yml@main
