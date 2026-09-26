@@ -8,7 +8,7 @@ in the next release; there are no patches for earlier tags.
 ## Reporting a vulnerability
 
 Report privately through GitHub's private vulnerability reporting for this repository:
-open [**Security → Report a vulnerability**](https://github.com/macblackstuff-labs/system-adoption-pipeline/security/advisories/new).
+open [**Security → Report a vulnerability**](https://github.com/macblackstuff/system-adoption-pipeline/security/advisories/new).
 That opens a draft advisory visible only to you and the maintainers. Private vulnerability
 reporting is enabled on this repository as of the moment it becomes public, so this link works
 for anyone. Please do not open a public issue or pull request for a vulnerability.

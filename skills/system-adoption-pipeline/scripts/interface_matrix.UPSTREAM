@@ -1,6 +1,6 @@
 # Pins for the vendored copies of interface_matrix.py and its self-check.
 # Re-syncing is deliberate: copy the upstream files in and update sha256 in the same commit.
-repo macblackstuff-labs/interface-matrix
+repo macblackstuff/interface-matrix
 tag v0.2.0
 path skills/interface-matrix/scripts/interface_matrix.py
 sha256 970be2ca10a3397ebc6ea26ba128083a19f94adf2fa37e6f3fa2270397b3a066

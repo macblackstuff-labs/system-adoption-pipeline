@@ -4,7 +4,7 @@ Bug reports, fixes and documentation improvements are welcome.
 
 ## Before you start
 
-- Search [existing issues](https://github.com/macblackstuff-labs/system-adoption-pipeline/issues) first.
+- Search [existing issues](https://github.com/macblackstuff/system-adoption-pipeline/issues) first.
 - For anything larger than a small fix, open an issue describing the change before writing code.
 - Security problems go through [private vulnerability reporting](SECURITY.md), never a public issue.
 
@@ -13,7 +13,7 @@ Bug reports, fixes and documentation improvements are welcome.
 The skill needs Python 3.9 or newer and nothing else: standard library only, no install step.
 
 ```bash
-git clone https://github.com/macblackstuff-labs/system-adoption-pipeline.git
+git clone https://github.com/macblackstuff/system-adoption-pipeline.git
 cd system-adoption-pipeline/skills/system-adoption-pipeline
 python3 scripts/test_check_plan.py
 python3 -O scripts/test_check_plan.py
@@ -55,7 +55,7 @@ git config user.email "<id>+<username>@users.noreply.github.com"
 ## Vendored files
 
 `scripts/interface_matrix.py` and `scripts/test_interface_matrix.py` are copies of a tagged release
-of [interface-matrix](https://github.com/macblackstuff-labs/interface-matrix), pinned by sha256 in
+of [interface-matrix](https://github.com/macblackstuff/interface-matrix), pinned by sha256 in
 `scripts/interface_matrix.UPSTREAM`. Do not edit them here: the `pin` check fails. Fix the matrix
 upstream first, then re-vendor its new release in a pull request that updates the pins.
 

@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Security problems go through [private vulnerability reporting](https://github.com/macblackstuff-labs/system-adoption-pipeline/security/advisories/new), never a public issue.
+        Security problems go through [private vulnerability reporting](https://github.com/macblackstuff/system-adoption-pipeline/security/advisories/new), never a public issue.
   - type: input
     id: version
     attributes:

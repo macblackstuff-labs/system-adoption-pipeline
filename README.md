@@ -1,8 +1,8 @@
 # system-adoption-pipeline
 
-[![Tests](https://github.com/macblackstuff-labs/system-adoption-pipeline/actions/workflows/tests.yml/badge.svg)](https://github.com/macblackstuff-labs/system-adoption-pipeline/actions/workflows/tests.yml)
-[![Release](https://img.shields.io/github/v/release/macblackstuff-labs/system-adoption-pipeline)](https://github.com/macblackstuff-labs/system-adoption-pipeline/releases/latest)
-[![License: MIT](https://img.shields.io/github/license/macblackstuff-labs/system-adoption-pipeline)](LICENSE)
+[![Tests](https://github.com/macblackstuff/system-adoption-pipeline/actions/workflows/tests.yml/badge.svg)](https://github.com/macblackstuff/system-adoption-pipeline/actions/workflows/tests.yml)
+[![Release](https://img.shields.io/github/v/release/macblackstuff/system-adoption-pipeline)](https://github.com/macblackstuff/system-adoption-pipeline/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/macblackstuff/system-adoption-pipeline)](LICENSE)
 [![Agent Skill](https://img.shields.io/badge/Agent_Skill-agentskills.io-blue)](https://agentskills.io/specification)
 
 An [Agent Skill](https://agentskills.io/specification) that turns a narrative description of
@@ -29,13 +29,13 @@ that spec becomes the pass-1 source.
 With the [`skills` CLI](https://github.com/vercel-labs/skills):
 
 ```bash
-npx skills add macblackstuff-labs/system-adoption-pipeline
+npx skills add macblackstuff/system-adoption-pipeline
 ```
 
 Or for one agent, without prompts:
 
 ```bash
-npx skills add macblackstuff-labs/system-adoption-pipeline -a claude-code -y
+npx skills add macblackstuff/system-adoption-pipeline -a claude-code -y
 ```
 
 Copying the [`skills/system-adoption-pipeline`](skills/system-adoption-pipeline) folder into
@@ -69,7 +69,7 @@ The skill itself is harness-neutral and names no harness-specific tooling.
 ## The vendored pass-3 script
 
 `scripts/interface_matrix.py` is a vendored copy of the script in the
-[`interface-matrix`](https://github.com/macblackstuff-labs/interface-matrix) skill, so this
+[`interface-matrix`](https://github.com/macblackstuff/interface-matrix) skill, so this
 skill never depends on a second skill being installed.
 [`scripts/interface_matrix.UPSTREAM`](skills/system-adoption-pipeline/scripts/interface_matrix.UPSTREAM)
 records the upstream repo, the path within it, and the sha256 of the copy shipped here. CI
