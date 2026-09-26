@@ -10,13 +10,24 @@ other tables — is ignored. Column order does not matter; the header names do.
 
 Once a table is claimed, any missing required column is an error naming it, e.g.
 `| Component | Kindx | Notes |` exits 1 with `table at line 3 is missing column(s): kind`.
-But a header that keeps **fewer than two** required names is not claimed at all: it is
-skipped silently, with no stderr and exit 0. A second components table headed
-`| Componnt | Kindd | Class | Notes | Status |` matches only `notes`, so it is dropped —
-its rows never reach the matrix and the "second Components table" error never fires.
-**After every run, check the report's `components: N` and `specified interfaces: N` counts
-against what you wrote.** A count lower than your rows is the only signal that a table was
-skipped.
+But a header that keeps **fewer than two** required names is not claimed at all. If another
+table of that kind is claimed, the misnamed one is skipped silently — no stderr, exit 0. A
+second components table headed `| Componnt | Kindd | Class | Notes | Status |` matches only
+`notes`, so it is dropped: its rows never reach the matrix and the "second Components table"
+error never fires. If the misnamed table is the file's *only* one of its kind, the run
+instead fails with exit 1 and `error: no Components table found (expected columns:
+component, kind, notes)` (likewise for Interfaces) — that error usually means a misspelled
+header, not a missing table.
+
+**After every run, reconcile the report's section 1 counts against your own row counts.**
+Retired and unresolved rows are counted separately, so the sums are what must match, not
+`components: N` alone:
+
+- Components rows = `components: N` + the components figure in `superseded rows: N (interfaces I, components C)`.
+- Interfaces rows = `specified interfaces: N` + `interfaces with gaps: N` + `explicit none: N` + `missing-component candidates: N` + the interfaces figure in `superseded rows:`.
+
+A sum below the rows you wrote means a table (or row) was dropped. With `--source`, a dropped
+row's `S:Lnn` citations also resurface in section 10 as uncited spans.
 
 ```markdown
 ## Components
