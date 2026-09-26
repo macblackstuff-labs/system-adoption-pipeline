@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.2.0 — unreleased
+## Unreleased
+
+- Contributing guide, issue forms and pull request template; README badges; release
+  headings dated.
+
+## 0.2.0 — 2026-09-26
 
 - Re-vendored `interface_matrix.py` and `test_interface_matrix.py` from interface-matrix
   v0.2.0, pinned by sha256 with the tag recorded in `interface_matrix.UPSTREAM`. The matrix
@@ -26,7 +31,7 @@
   (E1); the runbook's hand pin check loops the pin file, so it verifies every vendored file
   and prints one verdict each, matching CI's pin job (E3).
 
-## 0.1.1 — unreleased
+## 0.1.1 — 2026-09-26
 
 - Pass 7 check 2 now accepts an interface whose endpoints are covered by any package or any
   step, not only by a wave-1 step, so a correct rolling-wave plan passes. A plan with
@@ -40,7 +45,7 @@
 - Pass 4 takes pass 1's hot spots as input: each becomes a register row or is closed with a
   stated reason (F8).
 
-## 0.1.0
+## 0.1.0 — 2026-09-26
 
 - First release: the seven-pass system-adoption pipeline, seven templates, the pass-3
   interface matrix (vendored, sha256-pinned) and the pass-7 `check_plan.py` checker.
