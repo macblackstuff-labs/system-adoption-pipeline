@@ -25,9 +25,9 @@ passes 4, 5, 6 and 7 all read the earlier ones.
 | 1 | Extract | the narrative source, with numbered lines | `assets/templates/01-inventory.md` | every component has an id, a type, a one-line purpose and a source citation; every uncertainty is a hot spot |
 | 2 | Complete | pass 1 inventory | `assets/templates/02-completion.md` | every field is marked SOURCE (cited) or SILENT; the SILENT count is stated |
 | 3 | Interface matrix | pass 1 inventory (and pass 2's declared inputs/outputs) | `assets/templates/03-interfaces.md` plus the generated report | the matrix run exits 0, no missing-component candidates, no unexplained boundary findings, human review done |
-| 4 | Gap register | every SILENT field and interface gap | `assets/templates/04-gap-register.md` | each gap has exactly one class; USER questions ≤ 10, each with a recommended answer; every DEFAULT names its revisit trigger |
+| 4 | Gap register | every pass-1 hot spot, every SILENT field and every interface gap | `assets/templates/04-gap-register.md` | each gap has exactly one class; USER questions ≤ 10, each with a recommended answer; every DEFAULT names its revisit trigger |
 | 5 | Work packages | passes 1–3 | `assets/templates/05-work-packages.md` | every component in exactly one package; every package has an owner and an acceptance check |
-| 6 | Ordering | pass 5 | `assets/templates/06-ordering.md` | walking skeleton named; wave 1 decomposed to atomic steps, one acceptance check each; later waves at package level |
+| 6 | Ordering | pass 5 | `assets/templates/06-ordering.md` | walking skeleton named; wave 1 decomposed to atomic steps, one acceptance check each; later waves at package level, and every component of a later wave named by its package |
 | 7 | Verification | passes 1, 3, 4, 5, 6 | `assets/templates/07-verification.md` | `scripts/check_plan.py` exits 0, or every remaining failure carries the decision that accepts it |
 
 ## Starting from a goal
@@ -76,12 +76,13 @@ optional Rules table (`Producer class | Consumer class | Disposition | Reason`) 
 settles unstated pairs a class at a time — `none` takes those pairs out of review,
 `review` keeps them, and an explicit row always beats a rule. `--sample 0` prints every
 unstated pair; `--source FILE` lists the source lines nothing cites, which is where an
-unmodelled component hides. The input format, the ten report sections and the mandatory
-cell-by-cell human review are documented in the `interface-matrix` skill, whose script
-this is a vendored copy of. `scripts/interface_matrix.UPSTREAM` names that upstream repo,
-the path within it, and the sha256 of the copy shipped here; a check fails if the copy no
-longer matches that pin, so re-syncing is a deliberate act — copy the upstream file in and
-update the sha256 in the pin file in the same commit.
+unmodelled component hides. The input format, the ten report sections and the sections
+human review must read cell by cell are documented in `references/MATRIX-INPUT.md`.
+`scripts/interface_matrix.py` and its self-check `scripts/test_interface_matrix.py` are
+vendored copies; `scripts/interface_matrix.UPSTREAM` names the upstream repo, the path of
+each file within it, and the sha256 of each copy shipped here. A check fails if a copy no
+longer matches its pin, so re-syncing is a deliberate act — copy the upstream files in and
+update their sha256 lines in the pin file in the same commit.
 
 Rerun until there are no missing-component candidates. Then write the settled interface
 list into `assets/templates/03-interfaces.md` with one id per interface, and carry every
@@ -89,7 +90,9 @@ remaining gap to pass 4.
 
 ## Pass 4 — Gap register
 
-Every SILENT field and every interface gap gets exactly one class:
+Every pass-1 hot spot, every SILENT field and every interface gap gets exactly one class.
+A hot spot leaves this pass either as a register row or closed with a stated reason — pass
+1's hot spots are what this pass reads, so none of them may simply be dropped.
 
 - **SOURCE** — answered elsewhere in the source. Cite the line.
 - **RESEARCH** — an external fact. Write the exact question. Do not research it in this pass.
@@ -132,7 +135,8 @@ python3 scripts/check_plan.py \
 ```
 
 Five checks: every component has at least one package or step; every interface has both
-endpoints built by a named wave-1 step (so a plan with packages but no wave-1 steps fails);
+endpoints covered by the plan — some package or some step, so a later-wave interface passes
+(a plan with packages but no wave-1 steps fails check 3, which is where that belongs);
 every wave-1 step has an acceptance check; no wave-1 step depends on an unresolved USER gap
 unless it is labelled BLOCKED; USER questions ≤ 10, counted as distinct non-blank
 USER gap ids plus one per USER row whose id is blank or a placeholder (`-`, `?`,

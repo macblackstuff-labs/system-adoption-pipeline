@@ -164,11 +164,10 @@ def run(inventory, interfaces, gaps, packages, ordering):
     else:
         res.add("1b known ids", True, "every id named by a package or step is in the inventory")
 
-    # 2 — every interface has a producer and a consumer built by a named step
+    # 2 — every interface has a producer and a consumer somewhere in the plan (any package
+    # or step, so a later-wave interface is covered). A plan with packages but no wave-1
+    # steps is caught by check 3, not here.
     bad, built = [], 0
-    by_steps = set()
-    for r in wave1:
-        by_steps.update(ids(r["components"]))
     for r in interfaces:
         ends_built = True
         for role in ("producer", "consumer"):
@@ -179,8 +178,8 @@ def run(inventory, interfaces, gaps, packages, ordering):
             for endpoint in endpoints:
                 if endpoint in external:
                     continue
-                if endpoint not in by_steps:
-                    bad.append("interface %s: %s %s is in no step"
+                if endpoint not in covered:
+                    bad.append("interface %s: %s %s is in no package and no step"
                                % (r["id"], role, endpoint))
                     ends_built = False
         if ends_built:

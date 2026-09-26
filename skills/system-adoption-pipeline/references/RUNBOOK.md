@@ -3,9 +3,10 @@
 ## Overview
 
 Two on-demand command-line scripts and seven templates; no daemon, no port, no state.
-`scripts/interface_matrix.py` (pass 3) is a vendored copy of the one in the
-`interface-matrix` skill, pinned by sha256 in `scripts/interface_matrix.UPSTREAM` —
-CI fails if the copy no longer matches the pin. `scripts/check_plan.py` (pass 7) is
+`scripts/interface_matrix.py` (pass 3) and its self-check
+`scripts/test_interface_matrix.py` are vendored copies, each pinned by sha256 in
+`scripts/interface_matrix.UPSTREAM` — CI fails if a copy no longer matches its pin. The
+input format that script reads is `MATRIX-INPUT.md`, beside this file. `scripts/check_plan.py` (pass 7) is
 the deterministic checklist over the filled-in pass 1–6 artifacts. Python 3.9 or newer,
 standard library only: no virtualenv, no install step. All paths below are relative to
 this skill's own directory.
@@ -14,11 +15,11 @@ this skill's own directory.
 
 ```bash
 python3 scripts/test_check_plan.py
+python3 scripts/test_interface_matrix.py
 ```
-Expected: the final line `OK`, exit 0.
-
-`interface_matrix.py` has no test file here — its self-check ships with the
-`interface-matrix` skill and is run there; the pin check below is what this skill owns.
+Expected: the final line `OK`, exit 0, from each. `test_interface_matrix.py` is the
+vendored self-check for the vendored `interface_matrix.py`: it is pinned too, so run it
+here rather than editing it here.
 
 ```bash
 grep -E '^(import|from) ' scripts/check_plan.py scripts/interface_matrix.py
@@ -51,13 +52,13 @@ counts it as unresolved nor blocks a step on it.
 
 2. **Run pass 3.**
    ```bash
-   python3 scripts/interface_matrix.py MATRIX-INPUT.md > matrix-report.md
-   python3 scripts/interface_matrix.py MATRIX-INPUT.md --sample 0
-   python3 scripts/interface_matrix.py MATRIX-INPUT.md --source SOURCE.txt
+   python3 scripts/interface_matrix.py matrix-input.md > matrix-report.md
+   python3 scripts/interface_matrix.py matrix-input.md --sample 0
+   python3 scripts/interface_matrix.py matrix-input.md --source SOURCE.txt
    ```
-   Exit 0 = report written. Exit 1 = a bad input row, named by input line. The input
-   format, the report sections and the incident playbook for this script are in the
-   `interface-matrix` skill's own runbook.
+   `matrix-input.md` is your own file — name it whatever you like. Exit 0 = report written.
+   Exit 1 = a bad input row, named by input line. The input format and the report sections
+   are documented in the reference `references/MATRIX-INPUT.md`, beside this file.
 
 3. **Run pass 7.**
    ```bash
@@ -70,9 +71,10 @@ counts it as unresolved nor blocks a step on it.
 
 4. **Change a script.** Add or change a test in `scripts/test_check_plan.py` first and
    watch it fail, then change `scripts/check_plan.py`, then rerun the health checks. If you
-   change `scripts/interface_matrix.py`, change it upstream in the `interface-matrix` skill
-   first, then copy the new file here and update the `sha256` line in
-   `scripts/interface_matrix.UPSTREAM` in the same commit, or CI's pin check fails.
+   change `scripts/interface_matrix.py` or `scripts/test_interface_matrix.py`, change it
+   upstream in the repo the pin file names first, then copy the new file here and update its
+   `sha256` line in `scripts/interface_matrix.UPSTREAM` in the same commit, or CI's pin
+   check fails.
 
 ## Incident playbooks
 
@@ -84,7 +86,7 @@ counts it as unresolved nor blocks a step on it.
 | `check 1 component coverage: FAIL` naming a component | That pass-1 id appears in no package's `Components` cell and no step's. A component outside the boundary is exempt and never named here. Either the 100% rule was broken in pass 5, or the id was renamed in only one artifact. | Put the component in a package, or supersede it in pass 1. Never delete it silently. |
 | `check 1b known ids: FAIL — unknown id X` | A package or step names an id the inventory does not have: a typo, or a component invented at packaging time. | Fix the id, or add the component to pass 1 and rerun passes 2–3 for it. A component that first appears in pass 5 was never interface-checked. |
 | `check 2 interface endpoints: FAIL — interface IFn has no producer` | The interface row still carries `?` as an endpoint: a missing-component candidate that pass 3 should have resolved. | Resolve it in the matrix input, rerun `interface_matrix.py`, and update pass 3 before rerunning the checker. |
-| `check 2 … producer X is in no step` | Both endpoints exist as components, but no wave-1 step builds one of them. A package alone does not satisfy check 2; `external` endpoints are exempt, and a restated id is external only if every one of its pass-1 rows says so. | Name that component in a wave-1 step, or re-cut wave 1 so the interface is exercised. |
+| `check 2 … producer X is in no package and no step` | Both endpoints exist as components, but nothing in the plan builds one of them. Any package or any step satisfies check 2, so a later-wave interface passes as long as its endpoints are named by their package; `external` endpoints are exempt, and a restated id is external only if every one of its pass-1 rows says so. | Name that component in the package that builds it (pass 5), or in a step (pass 6). |
 | `check 1`/`check 2` names a component you thought was external | The exemption is a token test: the `Type` must begin with the word `external` or carry the token `(external)`, in any letter case. `external`, `External system`, `actor (external)` and `EXTERNAL API` are exempt; `non-external store`, `internal/external bridge`, `external-facing gateway` and `externally reached` are inside the boundary. An id restated on several pass-1 rows is one component, and it is exempt only if every one of its rows says `external`. | If it really is outside the boundary, word the `Type` to start with `external` or to carry `(external)`. Otherwise build it: put it in a package and a wave-1 step. |
 | `check 3 wave-1 acceptance: FAIL — no wave-1 step in the ordering` | Pass 6's steps table names no step in wave 1 (a `Wave` cell of `1` or `Wave 1`), so nothing is committed first and check 3 has nothing to verify. | Cut a wave 1: name the first steps and set their `Wave` cell to `1`. |
 | `check 3 wave-1 acceptance: FAIL` naming a step | That step's `Acceptance` cell is blank, `-`, `?`, `none` or `TBD` (any letter case). | Write one observable check, or move the step to a later wave, where only package-level acceptance is required. |
@@ -92,7 +94,7 @@ counts it as unresolved nor blocks a step on it.
 | `check 5 user question budget: FAIL — 12 USER question(s), limit 10` | Pass 4 over-classified. The count is of distinct non-blank gap ids plus one per placeholder-id row, so restating one question does not add to it. Most extras are reversible design choices. | Reclassify: adopter-specific, not settled by the source, and irreversible — all three, or it is DEFAULT with a revisit trigger. |
 | Checker passes but the plan is obviously wrong | Expected. The checklist sees coverage, not correctness: it cannot know an interface's format is wrong or a default unsafe. | Pass 3's cell-by-cell review and pass 4's class review are the controls, and they are human work. |
 | A cell splits into two, or a row is short | An unescaped pipe inside a cell. A backslash escapes the next character; short rows are padded with empty cells, which is why a truncated row usually surfaces as a missing acceptance check. | Escape literal pipes as `\|`. |
-| CI fails on the interface-matrix pin check, printing the pinned and the actual sha256 | `scripts/interface_matrix.py` no longer hashes to the `sha256` line in `scripts/interface_matrix.UPSTREAM`: the file was edited here, or re-synced from upstream without updating the pin. | Decide which file is intended. If upstream's is, copy it in and set the pin's `sha256` to the new digest in the same commit; otherwise restore the pinned version from upstream at the path the pin names. Never edit the vendored copy in place. |
+| CI fails on the pin check, printing the file, the pinned and the actual sha256 | That vendored file (`scripts/interface_matrix.py` or `scripts/test_interface_matrix.py`) no longer hashes to its `sha256` line in `scripts/interface_matrix.UPSTREAM`: it was edited here, or re-synced from upstream without updating the pin. | Decide which file is intended. If upstream's is, copy it in and set that pin's `sha256` to the new digest in the same commit; otherwise restore the pinned version from upstream at the path the pin names. Never edit a vendored copy in place. |
 
 ## Rollback and recovery
 
