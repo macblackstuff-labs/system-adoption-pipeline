@@ -8,7 +8,7 @@
 
 ## Checklist
 
-- [ ] Tests pass, with and without `-O` (see [CONTRIBUTING.md](https://github.com/macblackstuff-labs/system-adoption-pipeline/blob/main/CONTRIBUTING.md))
+- [ ] Tests pass, with and without `-O` (see [CONTRIBUTING.md](https://github.com/macblackstuff/system-adoption-pipeline/blob/main/CONTRIBUTING.md))
 - [ ] A test fails without this change, or the change is documentation-only
 - [ ] `CHANGELOG.md` has a line under `Unreleased`
 - [ ] `SKILL.md` / `references/` updated if behaviour the agent sees changed

@@ -1,7 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 — 2026-09-27
 
+- Moved to [github.com/macblackstuff/system-adoption-pipeline](https://github.com/macblackstuff/system-adoption-pipeline);
+  every link and install command now uses the new owner. The old `macblackstuff-labs` URLs redirect.
+- `scripts/interface_matrix.UPSTREAM` records the new upstream location. The vendored files and
+  their pins are unchanged.
 - Contributing guide, issue forms and pull request template; README badges; release
   headings dated.
 
