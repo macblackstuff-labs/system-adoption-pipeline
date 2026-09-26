@@ -1,7 +1,8 @@
 # Pass 4 — Gap register
 
-Every SILENT field from pass 2 and every interface gap from pass 3 gets exactly one
-class. Run passes 1–3 first: adopter questions asked before the tooling has run are
+Every hot spot from pass 1, every SILENT field from pass 2 and every interface gap from
+pass 3 gets exactly one class — a hot spot that is not a row here is closed with a stated
+reason, never dropped silently. Run passes 1–3 first: adopter questions asked before the tooling has run are
 questions the tooling would have answered.
 
 - **SOURCE** — answered elsewhere in the source. Cite it.

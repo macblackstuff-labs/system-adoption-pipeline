@@ -215,8 +215,26 @@ class CheckPlanTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("3 USER question(s), limit 10", out)
 
-    # --- check 2, built by steps
-    def test_packages_without_wave1_steps_fail_check_2(self):
+    # --- check 2, covered by any package or step
+    def test_later_wave_interface_passes_check_2(self):
+        # A correct rolling-wave plan: both endpoints of IF2 are built by WP3 in wave 2,
+        # so no wave-1 step names them. Check 2 is about the whole plan, not wave 1.
+        inv = INVENTORY + "| C4 | agent | later | S:L30 |\n| C5 | store | later | S:L31 |\n"
+        ifaces = INTERFACES + "| IF2 | C4 | C5 | scores | csv | daily | ops | S:L30 |\n"
+        pkgs = PACKAGES + "| WP3 | Later | C4 C5 | ops | x | y | WP2 | later lands |\n"
+        code, out = self.run_plan(inventory=inv, interfaces=ifaces, packages=pkgs)
+        self.assertEqual(code, 0, out)
+        self.assertIn("2 of 2 interfaces have both endpoints built", out)
+
+    def test_endpoint_in_no_package_and_no_step_fails_check_2(self):
+        inv = INVENTORY + "| C4 | agent | uncovered | S:L30 |\n"
+        ifaces = INTERFACES + "| IF2 | C1 | C4 | scores | csv | daily | ops | S:L30 |\n"
+        code, out = self.run_plan(inventory=inv, interfaces=ifaces)
+        self.assertEqual(code, 1, out)
+        self.assertIn("check 2 interface endpoints: FAIL", out)
+        self.assertIn("interface IF2: consumer C4 is in no package and no step", out)
+
+    def test_packages_without_wave1_steps_fail_check_3(self):
         ordering = """## Wave 1 steps
 
 | Step | Wave | Action | Components | Interfaces | Gaps | Blocked | Acceptance |
@@ -225,7 +243,9 @@ class CheckPlanTests(unittest.TestCase):
 """
         code, out = self.run_plan(ordering=ordering)
         self.assertEqual(code, 1, out)
-        self.assertIn("check 2 interface endpoints: FAIL", out)
+        self.assertIn("check 2 interface endpoints: PASS", out)
+        self.assertIn("check 3 wave-1 acceptance: FAIL", out)
+        self.assertIn("no wave-1 step in the ordering", out)
 
     def test_comma_list_endpoint_is_parsed_as_ids(self):
         ifaces = INTERFACES.replace("| IF1 | C2 | C1 |", "| IF1 | C2, C1 | C1 |")

@@ -22,6 +22,8 @@ jobs:
         run: |
           python3 scripts/test_check_plan.py
           python3 -O scripts/test_check_plan.py
+          python3 scripts/test_interface_matrix.py
+          python3 -O scripts/test_interface_matrix.py
       - name: standard library only
         working-directory: skills/system-adoption-pipeline
         run: |
@@ -36,17 +38,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: the vendored interface_matrix.py must match its sha256 pin
+      - name: every vendored interface-matrix file must match its sha256 pin
         working-directory: skills/system-adoption-pipeline
         run: |
-          pinned=$(awk '$1 == "sha256" { print $2 }' scripts/interface_matrix.UPSTREAM)
-          actual=$(sha256sum scripts/interface_matrix.py | cut -d' ' -f1)
-          echo "pinned $pinned"
-          echo "actual $actual"
-          if [ "$pinned" != "$actual" ]; then
-            echo "::error::scripts/interface_matrix.py no longer matches the pin in scripts/interface_matrix.UPSTREAM"
-            exit 1
-          fi
+          set -eu
+          # Each `path` line in the pin file is followed by the `sha256` of that file;
+          # the copy here is scripts/<basename of path>.
+          awk '$1 == "path" { p = $2 } $1 == "sha256" { print p, $2 }' \
+            scripts/interface_matrix.UPSTREAM > /tmp/pins
+          test -s /tmp/pins
+          fail=0
+          while read -r path pinned; do
+            file="scripts/$(basename "$path")"
+            actual=$(sha256sum "$file" | cut -d' ' -f1)
+            echo "$file pinned $pinned actual $actual"
+            if [ "$pinned" != "$actual" ]; then
+              echo "::error::$file no longer matches the pin in scripts/interface_matrix.UPSTREAM"
+              fail=1
+            fi
+          done < /tmp/pins
+          exit $fail
 
   validate:
     runs-on: ubuntu-latest
