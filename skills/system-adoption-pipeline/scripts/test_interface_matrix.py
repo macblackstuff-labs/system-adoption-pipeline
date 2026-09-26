@@ -242,6 +242,54 @@ class TestParsing(unittest.TestCase):
         self.assertIn("warning: line 23: table row outside any table ignored", proc.stderr)
         self.assertIn("specified interfaces: 1", proc.stdout)
 
+    def test_misnamed_components_table_warns_with_its_line(self):
+        extra = "| Componnt | Kindd | Class | Notes | Status |\n|---|---|---|---|---|\n| Ghost | | | typo'd header | |\n\n"
+        text = doc("| Ingest | Store | rows | csv | cron | me | S:L1 |\n",
+                   components=COMPONENTS + extra)
+        proc = run(text)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("warning: line %d:" % lineno(text, "| Componnt |"), proc.stderr)
+        self.assertNotIn("Ghost", proc.stdout)
+        self.assertIn("components: 4 (3 internal, 1 external)", proc.stdout)
+
+    def test_sole_misnamed_components_table_still_exits_1(self):
+        proc = run(doc("", components="| Componnt | Kindd | Class | Notes | Status |\n|---|---|---|---|---|\n| Ghost | | | x | |\n\n"))
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("no Components table found", proc.stderr)
+
+    def test_foreign_disposition_table_does_not_warn(self):
+        foreign = "| Disposition | Reason |\n|---|---|\n| keep | because |\n\n"
+        proc = run(doc("| Ingest | Store | rows | csv | cron | me | S:L1 |\n",
+                       components=COMPONENTS + foreign))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn("warning", proc.stderr)
+
+    def test_correctly_named_tables_do_not_warn(self):
+        proc = run(doc("| Ingest | Store | rows | csv | cron | me | S:L1 |\n"))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn("warning", proc.stderr)
+
+
+class TestExternalKind(unittest.TestCase):
+    """`Kind` uses check_plan's rule: first word `external`, or the token `(external)`."""
+
+    def kind(self, value):
+        components = COMPONENTS.replace("| Analyst | external | a human |",
+                                        "| Analyst | %s | a human |" % value)
+        proc = run(doc("", components=components))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return proc.stdout
+
+    def test_external_kinds(self):
+        for value in ("actor (external)", "External", "external service", "external"):
+            with self.subTest(value=value):
+                self.assertIn("components: 4 (3 internal, 1 external)", self.kind(value))
+
+    def test_internal_kinds(self):
+        for value in ("externalize", "internal", "(externalish)"):
+            with self.subTest(value=value):
+                self.assertIn("components: 4 (4 internal, 0 external)", self.kind(value))
+
 
 class TestReport(unittest.TestCase):
     def test_frontmatter_and_prose_ignored(self):

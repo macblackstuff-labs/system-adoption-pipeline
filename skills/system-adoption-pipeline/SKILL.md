@@ -22,9 +22,9 @@ passes 4, 5, 6 and 7 all read the earlier ones.
 
 | # | Pass | Input | Output artifact | Done-check |
 |---|---|---|---|---|
-| 1 | Extract | the narrative source, with numbered lines | `assets/templates/01-inventory.md` | every component has an id, a type, a one-line purpose and a source citation; every uncertainty is a hot spot |
+| 1 | Extract | the narrative source, numbered by the reader (`nl -ba`) | `assets/templates/01-inventory.md` | every component has an id, a type, a one-line purpose and a source citation; every uncertainty is a hot spot |
 | 2 | Complete | pass 1 inventory | `assets/templates/02-completion.md` | every field is marked SOURCE (cited) or SILENT; the SILENT count is stated |
-| 3 | Interface matrix | pass 1 inventory (and pass 2's declared inputs/outputs) | `assets/templates/03-interfaces.md` plus the generated report | the matrix run exits 0, no missing-component candidates, no unexplained boundary findings, human review done |
+| 3 | Interface matrix | pass 1 inventory (and pass 2's declared inputs/outputs) | `assets/templates/03-interfaces.md` plus the generated report | the matrix run exits 0, no missing-component candidates, no unexplained boundary findings, human review of report sections 2, 3, 4 and 7 done, every remaining `Format`/`Trigger` gap carried to pass 4 (they need not be filled here; `Owner` is producer-by-default, so it never remains) |
 | 4 | Gap register | every pass-1 hot spot, every SILENT field and every interface gap | `assets/templates/04-gap-register.md` | each gap has exactly one class; USER questions ≤ 10, each with a recommended answer; every DEFAULT names its revisit trigger |
 | 5 | Work packages | passes 1–3 | `assets/templates/05-work-packages.md` | every component in exactly one package; every package has an owner and an acceptance check |
 | 6 | Ordering | pass 5 | `assets/templates/06-ordering.md` | walking skeleton named; wave 1 decomposed to atomic steps, one acceptance check each; later waves at package level, and every component of a later wave named by its package |
@@ -47,15 +47,20 @@ into steps and skip the seven passes.
 
 ## Pass 1 — Extract
 
-Read the source with numbered lines and extract, Event Storming style: actors, domain
-events, commands, policies, read models, external systems. Cite the line for every
-component. Anything the source leaves uncertain becomes a hot spot, never a guess.
+Number the source's lines yourself — sources rarely carry numbers — with
+`nl -ba SOURCE.txt`, and name that tool in the inventory's `Source:` line so every citation
+can be reproduced. Extract, Event Storming style: actors, domain events, commands,
+policies, read models, external systems. A command folds into the purpose of the component
+that acts on it; events, policies and read models are rows of their own. Cite the line for
+every component. Anything the source leaves uncertain becomes a hot spot, never a guess.
 
 ## Pass 2 — Complete
 
 Fill in every component's fields. If the source carries its own specification template
 for a kind of component (a job spec, a service template), use that template's own fields
 for those components; everything else gets purpose, inputs, outputs, owner, acceptance.
+A component outside the boundary (pass-1 `Type` external) records only its purpose and its
+interfaces; its other fields are N/A, not SILENT, because nobody builds it.
 Mark each field SOURCE with a citation or SILENT. Report the SILENT count — it is the
 size of the gap register before pass 3 adds to it.
 
@@ -63,7 +68,9 @@ size of the gap register before pass 3 adds to it.
 
 For every ordered pair of components that exchanges anything, record what flows, in what
 format, on what trigger, and which component owns the artefact crossing the boundary.
-Do not do this by hand and do not let a model generate the matrix: run the script.
+Owner is DEFAULT by rule: the producer owns what it emits unless the source says otherwise,
+so write the producer in `Owner` and record the rule once in pass 4 — not one gap per
+interface. Do not do this by hand and do not let a model generate the matrix: run the script.
 
 ```bash
 python3 scripts/interface_matrix.py MATRIX-INPUT.md > matrix-report.md
@@ -76,21 +83,33 @@ optional Rules table (`Producer class | Consumer class | Disposition | Reason`) 
 settles unstated pairs a class at a time — `none` takes those pairs out of review,
 `review` keeps them, and an explicit row always beats a rule. `--sample 0` prints every
 unstated pair; `--source FILE` lists the source lines nothing cites, which is where an
-unmodelled component hides. The input format, the ten report sections and the sections
-human review must read cell by cell are documented in `references/MATRIX-INPUT.md`.
+unmodelled component hides. The input format, the ten report sections and the four that
+human review must read (2, 3, 4 and 7) are documented in `references/MATRIX-INPUT.md`.
+Review by class is compliant: at scale, Rules are the intended instrument for settling
+unstated pairs, and a reviewer reads each rule and its reason instead of every cell it
+settles.
 `scripts/interface_matrix.py` and its self-check `scripts/test_interface_matrix.py` are
 vendored copies; `scripts/interface_matrix.UPSTREAM` names the upstream repo, the path of
-each file within it, and the sha256 of each copy shipped here. A check fails if a copy no
-longer matches its pin, so re-syncing is a deliberate act — copy the upstream files in and
+each file within it, and the sha256 of each copy shipped here. The repository's CI pin
+job fails if a copy no longer matches its pin (`references/RUNBOOK.md` has the same check to
+run by hand), so re-syncing is a deliberate act — copy the upstream files in and
 update their sha256 lines in the pin file in the same commit.
 
-Rerun until there are no missing-component candidates. Then write the settled interface
+Rerun until there are no missing-component candidates. Where the source is silent about a
+`?` endpoint, resolve it to the component the row's citation names and class that choice
+DEFAULT in pass 4, or drop the row and record it as a pass-1 hot spot. When a finding here
+(an uncited `--source` span, a missing component) shows pass 1 or 2 was incomplete, patch
+those artifacts forward — add the row, note that pass 3 found it — rerun the matrix and carry
+on; do not restart the pipeline from pass 1. Then write the settled interface
 list into `assets/templates/03-interfaces.md` with one id per interface, and carry every
 remaining gap to pass 4.
 
 ## Pass 4 — Gap register
 
 Every pass-1 hot spot, every SILENT field and every interface gap gets exactly one class.
+Fields that share one answer may share one row: a register row per field class (for example
+"`Owner` of every interface = its producer") with the rule stated, rather than one row per
+field.
 A hot spot leaves this pass either as a register row or closed with a stated reason — pass
 1's hot spots are what this pass reads, so none of them may simply be dropped.
 
@@ -116,7 +135,8 @@ check that someone who was not present can observe.
 ## Pass 6 — Ordering
 
 First the walking skeleton: the thinnest end-to-end slice that exercises every layer of
-the system once, chosen to prove the data contracts pass 3 could only assume. Then expand
+the system once, chosen to prove the data contracts pass 3 left as gaps and pass 4
+settled by default — the skeleton is where those defaults are first tested. Then expand
 system by system in dependency order. Rolling wave: wave 1 decomposed to atomic steps —
 verb-led, ≤2 hours, exactly one acceptance check, no open decision embedded — later waves
 at package level, decomposed when the preceding wave ends. Note the feedback loops the
@@ -136,9 +156,14 @@ python3 scripts/check_plan.py \
 
 Five checks: every component has at least one package or step; every interface has both
 endpoints covered by the plan — some package or some step, so a later-wave interface passes
-(a plan with packages but no wave-1 steps fails check 3, which is where that belongs);
-every wave-1 step has an acceptance check; no wave-1 step depends on an unresolved USER gap
-unless it is labelled BLOCKED; USER questions ≤ 10, counted as distinct non-blank
+(a plan with packages but no wave-1 steps fails check 3, which is where that belongs); an
+endpoint id the inventory does not know fails check 2 as a pass-3 defect, and an interface
+between two externals builds nothing, so it is exempt and not counted as built;
+every wave-1 step has an acceptance check, with an advisory line (not a failure) counting
+the wave-1 steps labelled BLOCKED; no wave-1 step depends on an unresolved USER gap, or on a
+BLOCKED wave-1 step named by its step id in the `Gaps` cell, unless it is labelled BLOCKED;
+every `Gaps` entry names a real gap id or a wave-1 step id;
+USER questions ≤ 10, counted as distinct non-blank
 USER gap ids plus one per USER row whose id is blank or a placeholder (`-`, `?`,
 `none`, `TBD`). Exit 0 = all passed, 1 = a check
 failed and the offending ids are named, 2 = a file does not hold the table its template
@@ -155,5 +180,5 @@ with the final counts. Self-check for the checker itself:
 `python3 scripts/test_check_plan.py`.
 
 The checklist is not the review. It cannot tell you that an interface is wrong, only that
-nobody builds it — the cell-by-cell review in pass 3 and the class-by-class review in
-pass 4 are human work and are not delegable to another model pass.
+nobody builds it — the review of report sections 2, 3, 4 and 7 in pass 3 and the
+class-by-class review in pass 4 are human work and are not delegable to another model pass.

@@ -7,6 +7,7 @@ Stdlib only.
 """
 
 import argparse
+import difflib
 import graphlib
 import re
 import sys
@@ -17,6 +18,22 @@ RULE_COLUMNS = ("producer class", "consumer class", "disposition", "reason")
 ATTRS = ("Flows", "Format", "Trigger", "Owner")
 DISPOSITIONS = ("none", "review")
 CITE = re.compile(r"(?<![A-Za-z0-9])L(\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*)")
+
+
+def is_external(cell):
+    """True if a `Kind` puts the component outside the system boundary.
+
+    The same token test check_plan.py uses: the Kind's first word is `external`, or the
+    Kind carries the token `(external)`. So `External system` and `actor (external)` are
+    outside; `externalize`, `non-external store` and `(externalish)` are ours to build.
+    """
+    words = cell.strip().lower().split()
+    return bool(words) and (words[0] == "external" or "(external)" in words)
+
+
+def near(head, names):
+    """Header cells that are one of `names` or a near-miss spelling of one."""
+    return sum(1 for c in head if difflib.get_close_matches(c, names, n=1, cutoff=0.8))
 
 
 def citations(text, lineno=0):
@@ -128,7 +145,15 @@ def parse(text):
         shared_r = (len(set(head) & set(RULE_COLUMNS))
                     if {"producer class", "consumer class"} <= set(head) else 0)
         if max(shared_c, shared_i, shared_r) < 2:
-            # someone else's table: skip its header, separator and rows
+            # someone else's table: skip its header, separator and rows. But a header that
+            # near-misses two or more required names is a typo'd table of ours, not a
+            # foreign one — say so rather than dropping its rows in silence
+            near_r = (near(head, RULE_COLUMNS)
+                      if near(head, ("producer class", "consumer class")) >= 2 else 0)
+            if max(near(head, COMPONENT_COLUMNS), near(head, INTERFACE_COLUMNS), near_r) >= 2:
+                sys.stderr.write(
+                    "warning: line %d: table header misspells a Components, Interfaces or "
+                    "Rules column set; the whole table was ignored\n" % (i + 1))
             i += 2
             while i < len(lines) and lines[i].strip().startswith("|") and not is_header(lines, i):
                 i += 1
@@ -231,7 +256,7 @@ def build(components, interfaces, rules=()):
         active[name] = lineno
         class_of[name] = cls
         names.append(name)
-        if kind == "external":
+        if is_external(kind):
             external.add(name)
 
     def check(who, val, lineno):

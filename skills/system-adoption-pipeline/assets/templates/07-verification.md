@@ -21,7 +21,9 @@ package or step builds it. `external`, `External system`, `actor (external)` and
 `external-facing gateway` and `externally reached` are inside the boundary and must be
 built. An id restated on several pass-1 rows is one component, and it is outside the
 boundary only if every one of its rows says `external`. Check 2 requires both endpoints of every
-interface to be built by a named wave-1 step, not merely by a package.
+interface to be named by some package or some step; an endpoint the inventory does not
+know fails as a pass-3 defect, and an interface between two externals is exempt and not
+counted as built. The advisory line under check 3 (BLOCKED wave-1 steps) is not a failure.
 
 ## Run 1
 

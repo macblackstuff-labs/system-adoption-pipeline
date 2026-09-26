@@ -3,21 +3,33 @@
 The input to `scripts/interface_matrix.py` is one Markdown file with a Components table and
 an Interfaces table, plus an optional Rules table. A table is a header row followed by a
 `|---|` separator row. A table is read as ours when its header (case-insensitive) shares at
-least two names with that table's **required** columns — the optional names (`Class`,
-`Status`, `Source`) never count, and the Rules table additionally needs both
+least two names with that table's **required** columns — a table's own optional names never
+count (`Class` and `Status` in Components, `Source` and `Status` in Interfaces, `Status` in
+Rules), and the Rules table additionally needs both
 `Producer class` and `Consumer class`. Everything else in the file — frontmatter, prose,
 other tables — is ignored. Column order does not matter; the header names do.
 
 Once a table is claimed, any missing required column is an error naming it, e.g.
 `| Component | Kindx | Notes |` exits 1 with `table at line 3 is missing column(s): kind`.
-But a header that keeps **fewer than two** required names is not claimed at all. If another
-table of that kind is claimed, the misnamed one is skipped silently — no stderr, exit 0. A
-second components table headed `| Componnt | Kindd | Class | Notes | Status |` matches only
-`notes`, so it is dropped: its rows never reach the matrix and the "second Components table"
-error never fires. If the misnamed table is the file's *only* one of its kind, the run
-instead fails with exit 1 and `error: no Components table found (expected columns:
-component, kind, notes)` (likewise for Interfaces) — that error usually means a misspelled
-header, not a missing table.
+But a header that keeps **fewer than two** required names is not claimed at all, and its
+whole table is skipped. If two or more of its cells are near-miss spellings of one table's
+required names, the skip is announced on stderr and the exit code is unchanged:
+`warning: line N: table header misspells a Components, Interfaces or Rules column set; the
+whole table was ignored`. A second components table headed
+`| Componnt | Kindd | Class | Notes | Status |` matches only `notes`, so it is dropped with
+that warning (exit 0): its rows never reach the matrix and the "second Components table"
+error never fires. The same holds for a misspelled Interfaces table
+(`| Producr | Consumr | Flws | … |`) and for a Rules table whose class columns are misspelled
+(`| Producer class | Consumr class | … |`). If the misspelled table is the file's *only* one
+of its kind, the warning is followed by `error: no Components table found (expected columns:
+component, kind, notes)` (likewise for Interfaces) and exit 1. A genuinely foreign table
+(`| Fruit | Colour |`, `| Disposition | Reason |`) is skipped silently. Which diagnostic a
+misspelling gets depends on the exact-name count, not on how bad it is: `| COMPONNT | Kind |
+Notes |` still shares two exact names, so it is claimed and exits 1 with
+`table at line 3 is missing column(s): component` (the line the header is on).
+Synonyms (`From` for `Producer`) are not
+near misses: a table of them is skipped with no warning, so the reconciliation below is
+still the check that catches it.
 
 **After every run, reconcile the report's section 1 counts against your own row counts.**
 Retired and unresolved rows are counted separately, so the sums are what must match, not
@@ -26,7 +38,8 @@ Retired and unresolved rows are counted separately, so the sums are what must ma
 - Components rows = `components: N` + the components figure in `superseded rows: N (interfaces I, components C)`.
 - Interfaces rows = `specified interfaces: N` + `interfaces with gaps: N` + `explicit none: N` + `missing-component candidates: N` + the interfaces figure in `superseded rows:`.
 
-A sum below the rows you wrote means a table (or row) was dropped. With `--source`, a dropped
+A sum below the rows you wrote means a table (or row) was dropped — look first for a
+`warning:` line on stderr. With `--source`, a dropped
 row's `S:Lnn` citations also resurface in section 10 as uncited spans.
 
 ```markdown
@@ -50,10 +63,11 @@ row's `S:Lnn` citations also resurface in section 10 as uncited spans.
 
 Required columns: `Component`, `Kind`, `Notes`. Optional: `Class`, `Status`.
 
-- `Kind` blank = internal. The cell must read exactly `external` (letter case ignored) for
-  the component to sit outside the boundary and be exempt from the boundary check. A pass-1
-  `Type` such as `actor (external)` is **not** external to this script — put the qualifier in
-  `Notes` and leave `Kind` as the single word `external`.
+- `Kind` blank = internal. A component sits outside the boundary, exempt from the boundary
+  check, when its `Kind`'s first word is `external` or it carries the token `(external)`,
+  in any letter case — the same rule pass 7's `check_plan.py` applies to a pass-1 `Type`, so
+  the `Type` can be copied into `Kind` unchanged. `External system` and `actor (external)` are
+  external; `externalize`, `non-external store` and `(externalish)` are internal.
 - `Class` is optional and free-form (`ING`, `AGT`); it only feeds the Rules table. A blank
   `Class` matches no rule, not even `*`, so a forgotten cell can never drop pairs from review
   — report section 9 names every unclassed component.
@@ -71,7 +85,9 @@ Required columns: `Producer`, `Consumer`, `Flows`, `Format`, `Trigger`, `Owner`.
   not a "no".
 - `Flows` = `none` declares there is deliberately no interface for that ordered pair.
 - Any of `Flows`/`Format`/`Trigger`/`Owner` left blank or `?` makes the row an interface gap
-  naming those attributes. Do not invent a value to make the gap go away.
+  naming those attributes. Do not invent a value to make the gap go away. `Owner` is the
+  exception by rule: the producer owns what it emits unless the source says otherwise, so
+  write the producer there (the rule is one DEFAULT row in pass 4).
 - The gap markers this script reads are the empty cell and `?` — nothing else. `GAP` is
   pass-3 **artifact** notation for `assets/templates/03-interfaces.md`; in the matrix input it
   is an ordinary value and settles the cell.
@@ -94,7 +110,9 @@ Required columns: `Producer`, `Consumer`, `Flows`, `Format`, `Trigger`, `Owner`.
 | AGT | * | review | look at every agent output |
 ```
 
-All four columns are required, and a table counts as the Rules table only if its header names
+All four columns are required; `Status` is optional, and a `Status` beginning `superseded`
+retires the rule (its `Reason` citations are still range-checked). A table counts as the
+Rules table only if its header names
 both `Producer class` and `Consumer class`, so a foreign `| Disposition | Reason |` table is
 left alone. A `none` rule settles every unstated pair whose producer and consumer classes
 match (`*` = any classed component): not listed, not sampled. `review` wins where both match,
@@ -123,6 +141,9 @@ A backslash escapes the next character and is dropped: `\|` is a literal pipe in
 5. Feedback loops · 6. Partitioned order · 7. Unstated pairs · 8. Matrix ·
 9. Class rules (only with a Rules table) · 10. Source coverage (only with `--source`).
 
-Human review reads sections 2, 3, 4 and 7 cell by cell: every missing-component candidate
-resolved, every interface gap carried to pass 4, every boundary finding explained, and every
-remaining unstated pair either listed as an interface or settled.
+Human review reads sections 2, 3, 4 and 7: every missing-component candidate resolved,
+every interface gap carried to pass 4, every boundary finding explained, and every remaining
+unstated pair either listed as an interface or settled. Section 7 may be reviewed by class:
+at scale a Rules table is the intended instrument, and reading each rule and its reason in
+section 9 is compliant review of the pairs it settles. Only pairs no rule settles are read
+one by one.

@@ -170,6 +170,37 @@ class CheckPlanTests(unittest.TestCase):
         code, out = self.run_plan(gaps=gaps, ordering=ordering)
         self.assertEqual(code, 0, out)
 
+    def test_gaps_naming_undefined_id_fails(self):
+        ordering = ORDERING + "| S3 | 1 | Open the account | C1 |  | G9 | no | account exists |\n"
+        code, out = self.run_plan(ordering=ordering)
+        self.assertEqual(code, 1, out)
+        self.assertIn("check 4 wave-1 user gaps: FAIL", out)
+        self.assertIn("step S3: Gaps names G9", out)
+        self.assertIn("fix it in pass 6", out)
+
+    def test_gaps_naming_a_step_outside_wave_1_fails(self):
+        ordering = (ORDERING
+                    + "| S8 | 2 | Later work | C1 |  |  | no | later |\n"
+                    + "| S3 | 1 | Open the account | C1 |  | S8 | no | account exists |\n")
+        code, out = self.run_plan(ordering=ordering)
+        self.assertEqual(code, 1, out)
+        self.assertIn("check 4 wave-1 user gaps: FAIL", out)
+        self.assertIn("step S3: Gaps names S8", out)
+
+    def test_gaps_naming_a_wave1_step_is_accepted(self):
+        ordering = ORDERING + "| S3 | 1 | Open the account | C1 |  | S1 | no | account exists |\n"
+        code, out = self.run_plan(ordering=ordering)
+        self.assertEqual(code, 0, out)
+
+    def test_check_4_summary_counts_distinct_steps(self):
+        # S3 has both an open USER gap and a BLOCKED upstream step: one offending step.
+        ordering = (ORDERING
+                    + "| S4 | 1 | Wait on the adopter | C1 |  | G1 | yes | account exists |\n"
+                    + "| S3 | 1 | Open the account | C1 |  | G1 S4 | no | account exists |\n")
+        code, out = self.run_plan(ordering=ordering)
+        self.assertEqual(code, 1, out)
+        self.assertIn("1 wave-1 step(s) depend on one without BLOCKED", out)
+
     # --- check 5
     def test_eleven_user_questions_fail(self):
         extra = "".join("| U%d | q%d | USER | ask | open |\n" % (i, i) for i in range(2, 13))
@@ -494,6 +525,52 @@ class CheckPlanTests(unittest.TestCase):
         code, out = self.run_plan(ordering=ordering)
         self.assertEqual(code, 1)
         self.assertIn("step S3 has no acceptance check", out)
+
+    # --- v0.2.0: E4, E5, F15, F16
+    def test_external_to_external_interface_is_not_counted_built(self):
+        # E4: nothing is built for an interface between two externals, so it is exempt
+        # from check 2 and not counted among the built ones.
+        inv = INVENTORY + "| H1 | external | a human | S:L60 |\n| H2 | external | a bank | S:L61 |\n"
+        ifaces = INTERFACES + "| IF2 | H1 | H2 | payment | ? | ? | ? | S:L61 |\n"
+        code, out = self.run_plan(inventory=inv, interfaces=ifaces)
+        self.assertEqual(code, 0, out)
+        self.assertIn("1 of 1 interfaces have both endpoints built; "
+                      "1 external-to-external exempt", out)
+
+    def test_endpoint_unknown_to_inventory_names_pass_3(self):
+        # E5: a typo'd endpoint is a pass-3 defect, not a missing step.
+        ifaces = INTERFACES + "| IF2 | C1 | C9 | scores | csv | daily | ops | S:L30 |\n"
+        code, out = self.run_plan(interfaces=ifaces)
+        self.assertEqual(code, 1, out)
+        self.assertIn("interface IF2: consumer C9 is not in the inventory (fix it in pass 3)",
+                      out)
+        self.assertNotIn("C9 is in no package and no step", out)
+
+    def test_step_depending_on_blocked_step_needs_blocked(self):
+        # F15: a step id in the Gaps cell names an upstream step.
+        ordering = ORDERING.replace("| S1 | 1 | Create the store | C2 | IF1 |  | no |",
+                                    "| S1 | 1 | Create the store | C2 | IF1 | G1 | yes |")
+        ordering = ordering.replace("| IF1 | G2 | no |", "| IF1 | G2, S1 | no |")
+        code, out = self.run_plan(ordering=ordering)
+        self.assertEqual(code, 1, out)
+        self.assertIn("step S2 depends on BLOCKED step S1 and is not labelled BLOCKED", out)
+
+    def test_step_depending_on_unblocked_step_passes(self):
+        ordering = ORDERING.replace("| IF1 | G2 | no |", "| IF1 | G2, S1 | no |")
+        code, out = self.run_plan(ordering=ordering)
+        self.assertEqual(code, 0, out)
+
+    def test_blocked_wave1_steps_get_an_advisory(self):
+        # F16: advisory only; the checks still pass.
+        ordering = ORDERING.replace("| S1 | 1 | Create the store | C2 | IF1 |  | no |",
+                                    "| S1 | 1 | Create the store | C2 | IF1 | G1 | yes |")
+        code, out = self.run_plan(ordering=ordering)
+        self.assertEqual(code, 0, out)
+        self.assertIn("advisory: 1 of 2 wave-1 steps are BLOCKED", out)
+
+    def test_no_advisory_without_blocked_steps(self):
+        _, out = self.run_plan()
+        self.assertNotIn("advisory", out)
 
 
 if __name__ == "__main__":
