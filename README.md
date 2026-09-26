@@ -33,9 +33,6 @@ Or for one agent, without prompts:
 npx skills add macblackstuff-labs/system-adoption-pipeline -a claude-code -y
 ```
 
-While this repository is private, the CLI needs a GitHub token with access to it: export
-`GH_TOKEN` (from an authenticated GitHub CLI, `GH_TOKEN=$(gh auth token)`) before running it.
-
 Copying the [`skills/system-adoption-pipeline`](skills/system-adoption-pipeline) folder into
 wherever your agent reads skills from works too: every path inside the skill is relative to
 its own folder, so the destination does not matter. Verify a copy with its self-check, run
