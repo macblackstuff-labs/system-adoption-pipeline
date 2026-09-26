@@ -24,7 +24,7 @@ passes 4, 5, 6 and 7 all read the earlier ones.
 |---|---|---|---|---|
 | 1 | Extract | the narrative source, numbered by the reader (`nl -ba`) | `assets/templates/01-inventory.md` | every component has an id, a type, a one-line purpose and a source citation; every uncertainty is a hot spot |
 | 2 | Complete | pass 1 inventory | `assets/templates/02-completion.md` | every field is marked SOURCE (cited) or SILENT; the SILENT count is stated |
-| 3 | Interface matrix | pass 1 inventory (and pass 2's declared inputs/outputs) | `assets/templates/03-interfaces.md` plus the generated report | the matrix run exits 0, no missing-component candidates, no unexplained boundary findings, human review of report sections 2, 3, 4 and 7 done, every remaining `Format`/`Trigger`/`Owner` gap carried to pass 4 (they need not be filled here) |
+| 3 | Interface matrix | pass 1 inventory (and pass 2's declared inputs/outputs) | `assets/templates/03-interfaces.md` plus the generated report | the matrix run exits 0, no missing-component candidates, no unexplained boundary findings, human review of report sections 2, 3, 4 and 7 done, every remaining `Format`/`Trigger` gap carried to pass 4 (they need not be filled here; `Owner` is producer-by-default, so it never remains) |
 | 4 | Gap register | every pass-1 hot spot, every SILENT field and every interface gap | `assets/templates/04-gap-register.md` | each gap has exactly one class; USER questions ≤ 10, each with a recommended answer; every DEFAULT names its revisit trigger |
 | 5 | Work packages | passes 1–3 | `assets/templates/05-work-packages.md` | every component in exactly one package; every package has an owner and an acceptance check |
 | 6 | Ordering | pass 5 | `assets/templates/06-ordering.md` | walking skeleton named; wave 1 decomposed to atomic steps, one acceptance check each; later waves at package level, and every component of a later wave named by its package |
@@ -161,7 +161,9 @@ endpoint id the inventory does not know fails check 2 as a pass-3 defect, and an
 between two externals builds nothing, so it is exempt and not counted as built;
 every wave-1 step has an acceptance check, with an advisory line (not a failure) counting
 the wave-1 steps labelled BLOCKED; no wave-1 step depends on an unresolved USER gap, or on a
-BLOCKED wave-1 step named by its step id in the `Gaps` cell, unless it is labelled BLOCKED; USER questions ≤ 10, counted as distinct non-blank
+BLOCKED wave-1 step named by its step id in the `Gaps` cell, unless it is labelled BLOCKED;
+every `Gaps` entry names a real gap id or a wave-1 step id;
+USER questions ≤ 10, counted as distinct non-blank
 USER gap ids plus one per USER row whose id is blank or a placeholder (`-`, `?`,
 `none`, `TBD`). Exit 0 = all passed, 1 = a check
 failed and the offending ids are named, 2 = a file does not hold the table its template

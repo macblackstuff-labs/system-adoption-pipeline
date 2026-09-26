@@ -17,7 +17,8 @@ Matrix input: `<path to the input file>` · report: `<path to the report>`
 
 - `Producer`/`Consumer` are pass-1 ids. `?` means the endpoint is a missing-component
   candidate: resolve it in the matrix input and rerun before this pass is done.
-- A blank or `GAP` in Flows/Format/Trigger/Owner is an interface gap and goes to pass 4.
+- A blank or `GAP` in Flows/Format/Trigger is an interface gap and goes to pass 4. `Owner` is
+  producer-by-default (below), so it is filled here rather than carried.
   `GAP` is this artifact's notation only: in the matrix input an unknown is a blank cell or
   `?`, and `GAP` there is an ordinary value that settles the cell.
 - `Owner` is DEFAULT by rule: the producer owns what it emits unless the source says

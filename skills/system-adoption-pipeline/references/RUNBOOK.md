@@ -27,13 +27,20 @@ grep -E '^(import|from) ' scripts/check_plan.py scripts/interface_matrix.py
 Expected: only `argparse`, `difflib`, `graphlib`, `re`, `sys`. A third-party import is a defect.
 
 ```bash
-grep '^sha256 ' scripts/interface_matrix.UPSTREAM
-shasum -a 256 scripts/interface_matrix.py
+awk '$1 == "path" { p = $2 } $1 == "sha256" { print p, $2 }' \
+  scripts/interface_matrix.UPSTREAM |
+while read -r path pinned; do
+  file="scripts/$(basename "$path")"
+  actual=$(shasum -a 256 "$file" | cut -d' ' -f1)
+  [ "$pinned" = "$actual" ] && echo "OK    $file" || echo "DRIFT $file"
+done
 ```
-Expected: the two hexadecimal digests are equal. A difference means the vendored pass-3
-copy no longer matches its pin — either it was edited here, or it was re-synced from
-upstream without updating the pin. The check needs nothing but this skill folder, and CI
-runs it on every push. `sha256sum` instead of `shasum -a 256` where that is what the
+Expected: one `OK` line per `path` in the pin file, and no `DRIFT` line — every vendored
+file matches its own pin. A `DRIFT` line means that copy no longer matches — either it was
+edited here, or it was re-synced from upstream without updating the pin. The loop covers
+whatever the pin file lists, so a file added to the pin is checked without editing this
+runbook. The check needs nothing but this skill folder, and CI's `pin` job runs the same
+comparison on every push. `sha256sum` instead of `shasum -a 256` where that is what the
 system has.
 
 `check_plan.py` ends its report with a `counts:` line. `components` and `packages` are

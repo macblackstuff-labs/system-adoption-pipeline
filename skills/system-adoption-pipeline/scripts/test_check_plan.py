@@ -170,6 +170,37 @@ class CheckPlanTests(unittest.TestCase):
         code, out = self.run_plan(gaps=gaps, ordering=ordering)
         self.assertEqual(code, 0, out)
 
+    def test_gaps_naming_undefined_id_fails(self):
+        ordering = ORDERING + "| S3 | 1 | Open the account | C1 |  | G9 | no | account exists |\n"
+        code, out = self.run_plan(ordering=ordering)
+        self.assertEqual(code, 1, out)
+        self.assertIn("check 4 wave-1 user gaps: FAIL", out)
+        self.assertIn("step S3: Gaps names G9", out)
+        self.assertIn("fix it in pass 6", out)
+
+    def test_gaps_naming_a_step_outside_wave_1_fails(self):
+        ordering = (ORDERING
+                    + "| S8 | 2 | Later work | C1 |  |  | no | later |\n"
+                    + "| S3 | 1 | Open the account | C1 |  | S8 | no | account exists |\n")
+        code, out = self.run_plan(ordering=ordering)
+        self.assertEqual(code, 1, out)
+        self.assertIn("check 4 wave-1 user gaps: FAIL", out)
+        self.assertIn("step S3: Gaps names S8", out)
+
+    def test_gaps_naming_a_wave1_step_is_accepted(self):
+        ordering = ORDERING + "| S3 | 1 | Open the account | C1 |  | S1 | no | account exists |\n"
+        code, out = self.run_plan(ordering=ordering)
+        self.assertEqual(code, 0, out)
+
+    def test_check_4_summary_counts_distinct_steps(self):
+        # S3 has both an open USER gap and a BLOCKED upstream step: one offending step.
+        ordering = (ORDERING
+                    + "| S4 | 1 | Wait on the adopter | C1 |  | G1 | yes | account exists |\n"
+                    + "| S3 | 1 | Open the account | C1 |  | G1 S4 | no | account exists |\n")
+        code, out = self.run_plan(ordering=ordering)
+        self.assertEqual(code, 1, out)
+        self.assertIn("1 wave-1 step(s) depend on one without BLOCKED", out)
+
     # --- check 5
     def test_eleven_user_questions_fail(self):
         extra = "".join("| U%d | q%d | USER | ask | open |\n" % (i, i) for i in range(2, 13))

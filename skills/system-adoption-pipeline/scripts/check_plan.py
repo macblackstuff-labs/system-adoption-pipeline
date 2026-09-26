@@ -226,21 +226,36 @@ def run(inventory, interfaces, gaps, packages, ordering):
     # A step id in the `Gaps` cell names an upstream step: depending on a BLOCKED one
     # blocks this one too.
     blocked_steps = {r["step"] for r in wave1 if is_blocked(r)}
-    offenders = []
+    # Anything else in the cell must still name something this plan knows: a gap id from
+    # pass 4 or a wave-1 step id. A typo would otherwise silently name nothing and turn
+    # the blocking above off, so it is a failure, not silence.
+    known_refs = {r["id"] for r in gaps if real_id(r["id"])} | {r["step"] for r in wave1}
+    offenders, without_blocked, bad_refs = [], set(), 0
     for r in wave1:
+        unknown_refs = [g for g in ids(r["gaps"]) if g not in known_refs]
+        if unknown_refs:
+            bad_refs += len(unknown_refs)
+            offenders.append(
+                "step %s: Gaps names %s, which is neither a pass-4 gap id nor a wave-1 step "
+                "id (fix it in pass 6: name a real gap or step, or leave the cell `-`)"
+                % (r["step"], ", ".join(unknown_refs)))
         if is_blocked(r):
             continue
         depends = [g for g in ids(r["gaps"]) if g in open_user]
         if depends:
+            without_blocked.add(r["step"])
             offenders.append("step %s depends on unresolved USER gap %s and is not labelled BLOCKED"
                              % (r["step"], ", ".join(depends)))
         upstream = [g for g in ids(r["gaps"]) if g in blocked_steps]
         if upstream:
+            without_blocked.add(r["step"])
             offenders.append("step %s depends on BLOCKED step %s and is not labelled BLOCKED"
                              % (r["step"], ", ".join(upstream)))
-    res.add("4 wave-1 user gaps", not offenders,
-            "%d unresolved USER gap(s); %d wave-1 step(s) depend on one without BLOCKED"
-            % (len(open_user), len(offenders)), offenders)
+    summary = ("%d unresolved USER gap(s); %d wave-1 step(s) depend on one without BLOCKED"
+               % (len(open_user), len(without_blocked)))
+    if bad_refs:
+        summary += "; %d Gaps reference(s) name nothing in the plan" % bad_refs
+    res.add("4 wave-1 user gaps", not offenders, summary, offenders)
 
     # 5 — USER questions <= 10. A restated gap id is one question, not two; a placeholder
     # id cannot be deduplicated, so each such USER row is its own question.

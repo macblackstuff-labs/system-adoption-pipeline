@@ -13,7 +13,9 @@
   an interface between two externals is exempt and not counted as built (E4).
 - Pass 7 check 3 prints an advisory count of BLOCKED wave-1 steps; not a failure (F16).
 - Pass 7 check 4: a step id in a step's `Gaps` cell is an upstream dependency, and depending
-  on a BLOCKED step requires BLOCKED (F15).
+  on a BLOCKED step requires BLOCKED (F15). A `Gaps` entry that names neither a pass-4 gap
+  id nor a wave-1 step id now fails, naming the step and the fix, instead of being silently
+  ignored; the summary counts distinct offending steps, not offender lines.
 - Docs and templates: `GAP` is artifact notation, `?` the matrix marker (F3); review of
   report sections 2, 3, 4 and 7, by class through Rules where they apply (F5, F6); `Owner`
   is DEFAULT by rule, producer owns (F7); one register row per field class (F9); externals
@@ -21,7 +23,8 @@
   line numbering is the reader's, with the tool cited (F13); pass-3 re-entry patches passes
   1-2 forward (F14); rule for resolving a `?` the source is silent on (F17); pass 3's
   done-check leaves `Format`/`Trigger` gaps to pass 4 and the skeleton tests their defaults
-  (E1); the pin check is named as CI's pin job and the runbook check (E3).
+  (E1); the runbook's hand pin check loops the pin file, so it verifies every vendored file
+  and prints one verdict each, matching CI's pin job (E3).
 
 ## 0.1.1 — unreleased
 

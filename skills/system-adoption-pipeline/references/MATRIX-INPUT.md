@@ -3,8 +3,9 @@
 The input to `scripts/interface_matrix.py` is one Markdown file with a Components table and
 an Interfaces table, plus an optional Rules table. A table is a header row followed by a
 `|---|` separator row. A table is read as ours when its header (case-insensitive) shares at
-least two names with that table's **required** columns — the optional names (`Class`,
-`Status`, `Source`, and the Rules table's `Status`) never count, and the Rules table additionally needs both
+least two names with that table's **required** columns — a table's own optional names never
+count (`Class` and `Status` in Components, `Source` and `Status` in Interfaces, `Status` in
+Rules), and the Rules table additionally needs both
 `Producer class` and `Consumer class`. Everything else in the file — frontmatter, prose,
 other tables — is ignored. Column order does not matter; the header names do.
 
@@ -25,7 +26,8 @@ component, kind, notes)` (likewise for Interfaces) and exit 1. A genuinely forei
 (`| Fruit | Colour |`, `| Disposition | Reason |`) is skipped silently. Which diagnostic a
 misspelling gets depends on the exact-name count, not on how bad it is: `| COMPONNT | Kind |
 Notes |` still shares two exact names, so it is claimed and exits 1 with
-`table at line 1 is missing column(s): component`. Synonyms (`From` for `Producer`) are not
+`table at line 3 is missing column(s): component` (the line the header is on).
+Synonyms (`From` for `Producer`) are not
 near misses: a table of them is skipped with no warning, so the reconciliation below is
 still the check that catches it.
 
@@ -109,7 +111,8 @@ Required columns: `Producer`, `Consumer`, `Flows`, `Format`, `Trigger`, `Owner`.
 ```
 
 All four columns are required; `Status` is optional, and a `Status` beginning `superseded`
-retires the rule (its `Reason` citations are still range-checked). A table counts as the Rules table only if its header names
+retires the rule (its `Reason` citations are still range-checked). A table counts as the
+Rules table only if its header names
 both `Producer class` and `Consumer class`, so a foreign `| Disposition | Reason |` table is
 left alone. A `none` rule settles every unstated pair whose producer and consumer classes
 match (`*` = any classed component): not listed, not sampled. `review` wins where both match,
