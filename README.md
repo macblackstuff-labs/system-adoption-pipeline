@@ -1,58 +1,187 @@
 # system-adoption-pipeline
 
-[![Tests](https://github.com/macblackstuff/system-adoption-pipeline/actions/workflows/tests.yml/badge.svg)](https://github.com/macblackstuff/system-adoption-pipeline/actions/workflows/tests.yml)
-[![Release](https://img.shields.io/github/v/release/macblackstuff/system-adoption-pipeline)](https://github.com/macblackstuff/system-adoption-pipeline/releases/latest)
-[![License: MIT](https://img.shields.io/github/license/macblackstuff/system-adoption-pipeline)](LICENSE)
-[![Agent Skill](https://img.shields.io/badge/Agent_Skill-agentskills.io-blue)](https://agentskills.io/specification)
+An Agent Skill for Claude Code, Codex, Cursor and any harness that reads `skills/` from
+disk: it turns a narrative description of a system into an ordered, gap-closed
+implementation plan — requirements analysis, system design review via an interface matrix,
+gap register, work breakdown structure and build order — and verifies the plan deterministically.
 
-An [Agent Skill](https://agentskills.io/specification) that turns a narrative description of
-a large system — a transcript, a talk, a book chapter, a competitor teardown — into an
-ordered, gap-closed build plan, through seven passes: extract → complete → interface matrix
-→ gap register → work packages → ordering → deterministic verification.
+## What it does
 
-The skill lives in [`skills/system-adoption-pipeline`](skills/system-adoption-pipeline):
+The input is a written source that describes somebody else's system: a transcript, a talk,
+a book chapter, a competitor teardown, or a numbered spec written from an interview. The
+source is read line by line and every component in it is extracted with a citation.
 
-| Path | What it is |
-|---|---|
-| [`SKILL.md`](skills/system-adoption-pipeline/SKILL.md) | The seven passes an agent follows, with each pass's input, output artifact and done-check. |
-| [`assets/templates/`](skills/system-adoption-pipeline/assets/templates) | The seven artifact templates, copied into a working folder and filled in. |
-| [`scripts/check_plan.py`](skills/system-adoption-pipeline/scripts/check_plan.py) | Pass 7: the deterministic checklist over the filled-in pass 1–6 artifacts. |
-| [`scripts/interface_matrix.py`](skills/system-adoption-pipeline/scripts/interface_matrix.py) | Pass 3: builds an N² interface matrix and reports missing components, interface gaps, unconsumed outputs, feedback loops and never-stated pairs. |
-| [`references/RUNBOOK.md`](skills/system-adoption-pipeline/references/RUNBOOK.md) | Operating the two scripts: health checks, procedures, incident playbooks. |
+Seven passes follow, each with one input, one output artifact and a done-check: extract,
+complete, interface matrix, gap register, work packages, ordering, deterministic
+verification. Two of the passes are scripts rather than model output — pass 3 builds the
+interface matrix, pass 7 runs the checklist over the filled-in artifacts — so the parts
+that must be exhaustive are computed, not generated.
 
-If you have only a goal rather than a written source, the SKILL.md's "Starting from a goal"
-section says to interview the goal owner and write the answers up as a numbered spec first;
-that spec becomes the pass-1 source.
+The output is seven Markdown artifacts in a working folder: an inventory, a completion
+sheet, an interface list, a gap register, work packages, a build order, and a verification
+record. A plan is finished when `scripts/check_plan.py` exits 0, or when every remaining
+failure carries the decision that accepts it.
+
+## Who it is for
+
+Engineers, architects and technical leads who have to adopt a system of roughly eight or
+more components that somebody else designed, and who need the build plan to be provably
+complete against its source before work starts — typically after a plan has been called
+too high-level or too vague, or when only a goal exists and it has to become a plan.
+
+## Example
+
+Save the block below as `MATRIX-INPUT.md` inside the installed skill folder. It is a
+minimal pass-3 input, in the format `references/MATRIX-INPUT.md` documents — a Components
+table and an Interfaces table:
+
+```markdown
+## Components
+
+| Component | Kind | Class | Notes | Status |
+|---|---|---|---|---|
+| Ingest |  | ING | pulls raw events (S:L42) |  |
+| Store |  | STO | holds raw events (S:L44) |  |
+| Analyst | external |  | a human, outside the system boundary |  |
+
+## Interfaces
+
+| Producer | Consumer | Flows | Format | Trigger | Owner | Source | Status |
+|---|---|---|---|---|---|---|---|
+| Ingest | Store | raw event rows | ndjson file | nightly cron | platform | S:L42 |  |
+| Store | Analyst | weekly digest | ? | ? | ? | S:L44 |  |
+```
+
+Then run, from that same folder:
+
+```bash
+python3 scripts/interface_matrix.py MATRIX-INPUT.md
+```
+
+The report opens with the counts and the findings a reviewer reads:
+
+```markdown
+# Interface matrix report
+
+## 1. Summary
+
+- components: 3 (2 internal, 1 external)
+- specified interfaces: 1
+- interfaces with gaps: 1
+- explicit none: 0
+- missing-component candidates: 0
+- unstated pairs: 4
+- feedback loops: 0
+- self-dependencies: 0
+- superseded rows: 0 (interfaces 0, components 0)
+
+## 3. Interface gaps
+
+| line | producer | consumer | missing |
+|---|---|---|---|
+| line 14 | Store | Analyst | Format, Trigger, Owner |
+```
+
+Eight sections in all here, ending at `## 8. Matrix`, the N² matrix itself; sections 9 and
+10 are conditional — a Rules table adds one, `--source` the other. The gap row above is what
+pass 4 turns into a register entry.
 
 ## Install
 
-With the [`skills` CLI](https://github.com/vercel-labs/skills):
+| Harness | Command | Notes |
+|---|---|---|
+| skills CLI | `npx skills add macblackstuff/system-adoption-pipeline` | Prompts for the agents to install into. |
+| Claude Code | `npx skills add macblackstuff/system-adoption-pipeline -a claude-code -y` | Verified in CI. |
+| Codex | `npx skills add macblackstuff/system-adoption-pipeline -a codex -y` | Verified in CI. |
+| Cursor | `npx skills add macblackstuff/system-adoption-pipeline -a cursor -y` | Verified in CI. |
+| Any harness that reads `skills/` from disk | Copy [`skills/system-adoption-pipeline`](skills/system-adoption-pipeline) into where your agent reads skills from | Every path inside the skill is relative to its own folder, so the destination does not matter. |
 
-```bash
-npx skills add macblackstuff/system-adoption-pipeline
-```
+The [`skills` CLI](https://github.com/vercel-labs/skills) also covers `gemini-cli`,
+`github-copilot` and `opencode`, which CI installs and tests the same way.
 
-Or for one agent, without prompts:
-
-```bash
-npx skills add macblackstuff/system-adoption-pipeline -a claude-code -y
-```
-
-Copying the [`skills/system-adoption-pipeline`](skills/system-adoption-pipeline) folder into
-wherever your agent reads skills from works too: every path inside the skill is relative to
-its own folder, so the destination does not matter. Verify a copy with its self-check, run
-from inside the installed skill folder:
+Verify any copy with its self-check, run from inside the installed skill folder:
 
 ```bash
 python3 scripts/test_check_plan.py    # expected: final line OK, exit 0
 ```
 
-## Requirements
+## Usage
 
-Python 3.9 or newer. Standard library only — no dependencies, no virtualenv, no install step.
+Ask the agent in its own words — the skill's description triggers on adopting somebody
+else's system of roughly eight or more components, on a plan called too high-level or too
+vague, on a build plan that must be provably complete against its source before work
+starts, and on a goal for a system of that size that has to become a complete plan. For
+example: "adopt the system in this transcript and give me an ordered build plan".
 
-On Windows the interpreter is usually `py` rather than `python3`: read every `python3` below and
-in the skill's own docs as `py` there.
+The two scripts also run directly. Pass 3 runs from wherever the input file sits — from
+inside the skill folder, with the `MATRIX-INPUT.md` above saved there:
+
+```bash
+python3 scripts/interface_matrix.py MATRIX-INPUT.md > matrix-report.md
+```
+
+Pass 7 runs from the folder holding the filled-in artifacts. The shipped templates are
+already a passing example, so this is the command CI runs, from
+`assets/templates` inside the skill folder:
+
+```bash
+python3 ../../scripts/check_plan.py \
+  --inventory 01-inventory.md \
+  --interfaces 03-interfaces.md \
+  --gaps 04-gap-register.md \
+  --packages 05-work-packages.md \
+  --ordering 06-ordering.md
+```
+
+## How it works
+
+Each pass writes one artifact from a template, and no pass starts before the previous
+done-check holds.
+
+1. **Extract** — number the source's lines, extract every component with a citation, record every uncertainty as a hot spot.
+2. **Complete** — fill each component's fields, marking every one SOURCE (cited) or SILENT, and state the SILENT count.
+3. **Interface matrix** — `scripts/interface_matrix.py` builds the N² matrix (a design structure matrix) and reports missing components, interface gaps, unconsumed outputs, feedback loops and never-stated pairs. Input format and its up to ten sections (two conditional): [`references/MATRIX-INPUT.md`](skills/system-adoption-pipeline/references/MATRIX-INPUT.md).
+4. **Gap register** — every hot spot, SILENT field and interface gap gets exactly one class: SOURCE, RESEARCH, USER or DEFAULT. At most 10 USER questions.
+5. **Work packages** — the WBS 100% rule: every component in exactly one package, each with an owner and an observable acceptance check.
+6. **Ordering** — walking skeleton first, then rolling wave: wave 1 decomposed to atomic steps, later waves at package level.
+7. **Verification** — `scripts/check_plan.py` runs five checks over the artifacts of passes 1, 3, 4, 5 and 6.
+
+Operating the two scripts — health checks, procedures, incident playbooks — is
+[`references/RUNBOOK.md`](skills/system-adoption-pipeline/references/RUNBOOK.md). The pass
+definitions themselves are [`SKILL.md`](skills/system-adoption-pipeline/SKILL.md).
+
+## Output format
+
+| Artifact | Template | Holds |
+|---|---|---|
+| Inventory | [`01-inventory.md`](skills/system-adoption-pipeline/assets/templates/01-inventory.md) | Every component: id, type, purpose, source citation, hot spots. |
+| Completion | [`02-completion.md`](skills/system-adoption-pipeline/assets/templates/02-completion.md) | Each component's fields, marked SOURCE or SILENT. |
+| Interfaces | [`03-interfaces.md`](skills/system-adoption-pipeline/assets/templates/03-interfaces.md) | The settled interface list, one id per interface. |
+| Gap register | [`04-gap-register.md`](skills/system-adoption-pipeline/assets/templates/04-gap-register.md) | Every gap with its class, recommended answer or revisit trigger. |
+| Work packages | [`05-work-packages.md`](skills/system-adoption-pipeline/assets/templates/05-work-packages.md) | Packages with owner, inputs, outputs, dependencies, acceptance. |
+| Ordering | [`06-ordering.md`](skills/system-adoption-pipeline/assets/templates/06-ordering.md) | Walking skeleton, wave 1 atomic steps, later waves. |
+| Verification | [`07-verification.md`](skills/system-adoption-pipeline/assets/templates/07-verification.md) | The check_plan runs and their final counts. |
+
+`scripts/interface_matrix.py` writes its report to stdout; `scripts/check_plan.py` exits 0
+when every check passes, 1 when a check fails (naming the offending ids), and 2 when a file
+does not hold the table its template defines.
+
+## Requirements and limits
+
+Python 3.9 or newer. Standard library only — no dependencies, no virtualenv, no install
+step, and the scripts make no network calls.
+
+A system of fewer than roughly eight components does not need this — decompose it directly
+into steps. The plan is only as complete as its source: a hot spot or a SILENT field is a
+gap in the source document, not something the pipeline can fill. And the checklist is not
+the review — it can tell you that nobody builds an interface, never that the interface is
+wrong. Report sections 2, 3, 4 and 7 in pass 3, and the class-by-class review in pass 4,
+are human work.
+
+## Related
+
+- [interface-matrix](https://github.com/macblackstuff/interface-matrix) — the sibling skill that pass 3 vendors; use it on its own when you only need the matrix.
+- [Agent Skills specification](https://agentskills.io/specification) — the format this skill is written to.
 
 ## Harnesses tested
 
@@ -76,6 +205,8 @@ records the upstream repo, the path within it, and the sha256 of the copy shippe
 fails if the copy no longer matches the pin, so re-syncing is deliberate: copy the upstream
 file in and update the pin's `sha256` in the same commit.
 
-## License
+## Contributing, security, license
 
+[`CONTRIBUTING.md`](CONTRIBUTING.md) · [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) ·
+[`SECURITY.md`](SECURITY.md) · [`CHANGELOG.md`](CHANGELOG.md) ·
 MIT — see [`LICENSE`](LICENSE). Copyright (c) 2026 macblackstuff.

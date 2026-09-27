@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- README rewritten to the public-readme standard: a worked pass-3 example with its real
+  output, per-harness install table, and runnable commands for both scripts. The status
+  badges are removed.
 - Copyright holder in `LICENSE` and the README is now `macblackstuff`.
 - Code of conduct (Contributor Covenant 2.1); reports go to `conduct@macblackstuff.com`.
 
