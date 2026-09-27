@@ -19,7 +19,7 @@ promptscript the CLI reports PromptScript does not support global skill installa
 read_agents() {
   local home out
   home=$(mktemp -d)
-  out=$(HOME="$home" npx --yes skills add "$repo" --skill system-adoption-pipeline \
+  out=$(HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_DATA_HOME="$home/.local/share" npx --yes skills add "$repo" --skill system-adoption-pipeline \
           -g -a __invalid-agent__ -y --copy 2>&1 || true)
   rm -rf "$home"
   printf '%s\n' "$out" \
@@ -62,7 +62,11 @@ for agent in "${agents[@]}"; do
   fi
   home=$(mktemp -d)
   echo "== skills add -a $agent"
-  HOME="$home" npx --yes skills add "$repo" --skill system-adoption-pipeline -g -a "$agent" -y --copy
+  # XDG vars too: agents that install under ~/.config honour XDG_CONFIG_HOME, which the
+  # GitHub runner sets to the real home, so HOME alone would leak the install out of the
+  # throwaway home.
+  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_DATA_HOME="$home/.local/share" \
+    npx --yes skills add "$repo" --skill system-adoption-pipeline -g -a "$agent" -y --copy
 
   found=$(find "$home" -path "*/system-adoption-pipeline/SKILL.md" -print)
   count=$(printf '%s' "$found" | grep -c . || true)
