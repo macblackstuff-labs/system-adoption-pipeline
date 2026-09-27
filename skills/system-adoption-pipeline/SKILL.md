@@ -3,6 +3,9 @@ name: system-adoption-pipeline
 description: "Turns a narrative description of a large system — a transcript, a talk, a book chapter, a competitor teardown — into an ordered, gap-closed implementation plan, through seven passes: extract, complete, interface matrix, gap register, work packages, ordering, deterministic verification. Use when adopting somebody else's system of roughly eight or more components, when a plan is called too high-level or too vague, when a build plan must be provably complete against its source before work starts, or when someone brings only a goal for a system of that size and needs it turned into a complete plan."
 license: MIT
 compatibility: Requires Python 3.9 or newer; standard library only, no third-party packages and no network access.
+metadata:
+  author: macblackstuff
+  version: 0.2.1
 ---
 
 # system-adoption-pipeline
@@ -17,6 +20,12 @@ Requirements: Python 3.9 or newer, standard library only. All `scripts/...` and
 `references/RUNBOOK.md` is the operating runbook for the two scripts. Copy each template
 into your working folder and fill it in; keep the filled artifacts together, because
 passes 4, 5, 6 and 7 all read the earlier ones.
+
+## When not to use this
+
+A system of fewer than roughly eight components: decompose it directly into steps. A
+question about one interface rather than a whole system: run the matrix script alone. This
+skill does not research external facts, does not write code, and makes no network calls.
 
 ## The seven passes
 
@@ -182,3 +191,10 @@ with the final counts. Self-check for the checker itself:
 The checklist is not the review. It cannot tell you that an interface is wrong, only that
 nobody builds it — the review of report sections 2, 3, 4 and 7 in pass 3 and the
 class-by-class review in pass 4 are human work and are not delegable to another model pass.
+
+## References
+
+- `references/MATRIX-INPUT.md` — the pass-3 input format, its up to ten report sections (two conditional), and the four a human must review.
+- `references/RUNBOOK.md` — operating the two scripts: health checks, procedures, incident playbooks.
+- `assets/templates/01-inventory.md` … `07-verification.md` — one template per pass.
+- `scripts/interface_matrix.UPSTREAM` — upstream repo, paths and sha256 pins for the vendored pass-3 files.
