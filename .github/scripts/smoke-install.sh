@@ -24,7 +24,13 @@ read_agents() {
   rm -rf "$home"
   printf '%s\n' "$out" \
     | sed $'s/\033\\[[0-9;?]*[a-zA-Z]//g' \
-    | awk '/Valid agents:/{f=1; sub(/.*Valid agents:/, "")} f{if ($0 ~ /^[[:space:]]*$/) exit; print}' \
+    | awk '/Valid agents:/ {
+             sub(/.*Valid agents:/, ""); buf = $0
+             # A wrapped list continues on the next line; the break is always after a comma,
+             # so anything following the last comma-terminated line is unrelated output.
+             while (buf ~ /,[[:space:]]*$/ && (getline nxt) > 0) buf = buf nxt
+             print buf; exit
+           }' \
     | tr ',' '\n' \
     | sed 's/[^A-Za-z0-9_-]//g' \
     | grep -E '^[a-z0-9][a-z0-9_-]*$' || true
