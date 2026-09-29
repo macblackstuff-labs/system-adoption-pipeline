@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+(none)
+
+## 0.3.0 — 2026-09-29
+
+- Re-vendored `interface_matrix.py` and `test_interface_matrix.py` from interface-matrix
+  [v0.3.0](https://github.com/macblackstuff/interface-matrix/releases/tag/v0.3.0), pinned by
+  sha256 with the tag recorded in `scripts/interface_matrix.UPSTREAM`. The vendored matrix
+  now writes UTF-8 on every platform (Windows legacy codepages no longer crash it) and its
+  self-check gained the non-UTF8-console regression test: 84 tests.
 - README rewritten to the public-readme standard: a worked pass-3 example with its real
   output, per-harness install table, and runnable commands for both scripts. The status
   badges are removed.
@@ -10,7 +19,7 @@
 - Copyright holder in `LICENSE` and the README is now `macblackstuff`.
 - Code of conduct (Contributor Covenant 2.1); reports go to `conduct@macblackstuff.com`.
 
-## 0.2.1 — 2026-09-27
+## 0.2.1 — 2026-09-26
 
 - Moved to [github.com/macblackstuff/system-adoption-pipeline](https://github.com/macblackstuff/system-adoption-pipeline);
   every link and install command now uses the new owner. The old `macblackstuff-labs` URLs redirect.

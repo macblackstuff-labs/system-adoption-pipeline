@@ -669,6 +669,14 @@ def main(argv=None):
     ap.add_argument("--sample", type=nonneg, default=20, help="unstated pairs to print (0 = all)")
     ap.add_argument("--source", help="source file whose L<n> citations to check for coverage")
     args = ap.parse_args(argv)
+    # Windows consoles default to legacy codepages (cp437/cp850/cp1252) and CI pipes
+    # may be plain ASCII; writing the report raw then dies mid-report with
+    # UnicodeEncodeError. Reconfigure stdout to UTF-8 so the report is byte-identical
+    # whatever the console or pipe claims (Python 3.7+; 3.9 is the floor).
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError, OSError):
+        pass
     with open(args.input, encoding="utf-8") as fh:
         text = fh.read()
     components, interfaces, rules, cites, has_rules = parse(text)

@@ -965,6 +965,40 @@ class TestSourceCoverage(unittest.TestCase):
         proc = run(doc(IFACE))
         self.assertNotIn("## 10.", proc.stdout)
 
+    def test_report_survives_a_non_utf8_console(self):
+        # Windows consoles default to legacy codepages (cp437 has no em-dash) and
+        # pipes can be ASCII; the script must reconfigure stdout to UTF-8 rather
+        # than crash mid-report with UnicodeEncodeError. The em-dash lives in the
+        # --source coverage section, so this drives that path (fails without the
+        # reconfigure in main()).
+        src = os.path.join(tempfile.mkdtemp(), "inventory.md")
+        with open(src, "w", encoding="utf-8") as fh:
+            fh.write(doc(IFACE) + "\nsome uncited prose below the tables\n")
+        try:
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys, io, os, runpy\n"
+                    'sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="cp437",'
+                    ' errors="strict")\n'
+                    'script = os.path.abspath(sys.argv[1])\n'
+                    'sys.argv = ["interface_matrix.py", sys.argv[2],'
+                    ' "--source", sys.argv[2]]\n'
+                    'runpy.run_path(script, run_name="__main__")\n',
+                    SCRIPT,
+                    src,
+                ],
+                capture_output=True,
+                text=True,
+            )
+        finally:
+            os.unlink(src)
+            os.rmdir(os.path.dirname(src))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("Nothing cites these spans", proc.stdout)
+        self.assertNotIn("UnicodeEncodeError", proc.stderr)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

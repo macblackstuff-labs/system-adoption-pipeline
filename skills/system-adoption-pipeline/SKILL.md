@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires Python 3.9 or newer; standard library only, no third-party packages and no network access.
 metadata:
   author: macblackstuff
-  version: 0.2.1
+  version: 0.3.0
 ---
 
 # system-adoption-pipeline
