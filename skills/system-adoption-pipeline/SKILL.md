@@ -5,7 +5,10 @@ license: MIT
 compatibility: Requires Python 3.9 or newer; standard library only, no third-party packages and no network access.
 metadata:
   author: macblackstuff
-  version: 0.3.0
+  version: 0.4.0
+  # Optional model pins — experimental until adapters exist; see "Model pins":
+  # decision, thinker, reviewer, judge, each a model-name string, e.g.
+  # reviewer: "a review model you independently trust"
 ---
 
 # system-adoption-pipeline
@@ -33,7 +36,7 @@ skill does not research external facts, does not write code, and makes no networ
 |---|---|---|---|---|
 | 1 | Extract | the narrative source, numbered by the reader (`nl -ba`) | `assets/templates/01-inventory.md` | every component has an id, a type, a one-line purpose and a source citation; every uncertainty is a hot spot |
 | 2 | Complete | pass 1 inventory | `assets/templates/02-completion.md` | every field is marked SOURCE (cited) or SILENT; the SILENT count is stated |
-| 3 | Interface matrix | pass 1 inventory (and pass 2's declared inputs/outputs) | `assets/templates/03-interfaces.md` plus the generated report | the matrix run exits 0, no missing-component candidates, no unexplained boundary findings, human review of report sections 2, 3, 4 and 7 done, every remaining `Format`/`Trigger` gap carried to pass 4 (they need not be filled here; `Owner` is producer-by-default, so it never remains) |
+| 3 | Interface matrix | pass 1 inventory (and pass 2's declared inputs/outputs) | `assets/templates/03-interfaces.md` plus the generated report | the matrix run exits 0, no missing-component candidates, no unexplained boundary findings, human review of report sections 2, 3, 4 and 7 done, the matrix certifies (`--certify` exits 0), every remaining `Format`/`Trigger` gap carried to pass 4 (they need not be filled here; `Owner` is producer-by-default, so it never remains) |
 | 4 | Gap register | every pass-1 hot spot, every SILENT field and every interface gap | `assets/templates/04-gap-register.md` | each gap has exactly one class; USER questions ≤ 10, each with a recommended answer; every DEFAULT names its revisit trigger |
 | 5 | Work packages | passes 1–3 | `assets/templates/05-work-packages.md` | every component in exactly one package; every package has an owner and an acceptance check |
 | 6 | Ordering | pass 5 | `assets/templates/06-ordering.md` | walking skeleton named; wave 1 decomposed to atomic steps, one acceptance check each; later waves at package level, and every component of a later wave named by its package |
@@ -85,6 +88,7 @@ interface. Do not do this by hand and do not let a model generate the matrix: ru
 python3 scripts/interface_matrix.py MATRIX-INPUT.md > matrix-report.md
 python3 scripts/interface_matrix.py MATRIX-INPUT.md --sample 0
 python3 scripts/interface_matrix.py MATRIX-INPUT.md --source SOURCE.txt
+python3 scripts/interface_matrix.py MATRIX-INPUT.md --certify MATRIX-INPUT.ledger.md
 ```
 
 The input is one Markdown file with a Components table and an Interfaces table, plus an
@@ -97,6 +101,33 @@ human review must read (2, 3, 4 and 7) are documented in `references/MATRIX-INPU
 Review by class is compliant: at scale, Rules are the intended instrument for settling
 unstated pairs, and a reviewer reads each rule and its reason instead of every cell it
 settles.
+
+Who reviews is separation of duties, and the ledger records it: the reviewer of record —
+the `Reviewer` the review ledger names — must be someone other than whatever drafted the
+input. The default is an independent human reviewer; a model may hold the role only when
+the user explicitly pinned one, and the ledger records what actually reviewed either way.
+The rationale is measured, not stylistic: an LLM asked to generate a design structure
+matrix reproduced 77.3% of a published one
+([arXiv 2312.04134](https://arxiv.org/abs/2312.04134)), and false negatives dominate — the
+interface that was never written down is the one that hurts.
+
+Review is written into a ledger kept beside the input: one table,
+`Kind | Finding | Disposition | Reason | Reviewer | Date | Fingerprint`, one row per
+finding, keyed by identity rather than input line — the format is documented in
+`references/MATRIX-INPUT.md`. Start it as nothing but the header row and certify once:
+every finding comes back an `unreviewed:` blocker carrying its current fingerprint, so the
+refusal record doubles as the review worksheet. `--certify` exits 0 only when every ledger
+finding — candidates, gaps, boundary findings, unstated pairs and uncited spans — is
+dispositioned and none has drifted (feedback loops, self-dependencies and the class-rule
+audit are human-reviewed; the gate does not disposition them); exit 3 names every
+blocker — `drifted:` an entry whose finding is gone from the input or changed since
+disposition, `unreviewed:` a finding no entry covers — and a passing run's flags are the
+ones every later certification must replay exactly. A gap not filled now is parked, not
+ignored: disposition it `open-parked` with a reason it stays open, and certification
+carries it as an advisory, never a blocker. The passing run writes its certification record
+beside the ledger (`<ledger>.cert.md`), and the finished deliverable is four files shipped
+together: the report, its certification record, the input, and the ledger.
+
 `scripts/interface_matrix.py` and its self-check `scripts/test_interface_matrix.py` are
 vendored copies; `scripts/interface_matrix.UPSTREAM` names the upstream repo, the path of
 each file within it, and the sha256 of each copy shipped here. The repository's CI pin
@@ -191,6 +222,26 @@ with the final counts. Self-check for the checker itself:
 The checklist is not the review. It cannot tell you that an interface is wrong, only that
 nobody builds it — the review of report sections 2, 3, 4 and 7 in pass 3 and the
 class-by-class review in pass 4 are human work and are not delegable to another model pass.
+Pass 3's review runs under separation of duties, recorded in the ledger: the reviewer of
+record must be someone other than whatever drafted the input — an independent human
+reviewer by default, a model only when the user explicitly pinned one — and the ledger's
+`Reviewer` column records what actually reviewed.
+
+## Model pins (optional, experimental)
+
+Four optional keys may live under `metadata:` in this file's frontmatter — `decision`,
+`thinker`, `reviewer`, `judge` — each pinning that role to a model, as a plain string
+value (`reviewer: "a review model you independently trust"`). They are instructions to
+the agent executing the skill, not configuration: the Python scripts read no pins, only
+their flags. Experimental until adapters exist. Harness-specific model settings (an
+agent's own `model` or `effort` fields) are non-portable and do not belong here. Pins
+written into an installed copy are overwritten by a `skills add` refresh, so persistent
+pinning means maintaining them in a fork or a local override. A `reviewer` pin names an
+intended reviewer for pass 3's report review and pass 4's class review, still bound by
+pass 3's separation of duties — distinct from whatever drafted the input; the ledger's
+`Reviewer` column records what actually reviewed. The other three name the later passes
+they would run: `thinker` the work packages (pass 5), `decision` the ordering (pass 6),
+`judge` the verification (pass 7).
 
 ## References
 

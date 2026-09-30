@@ -147,3 +147,60 @@ unstated pair either listed as an interface or settled. Section 7 may be reviewe
 at scale a Rules table is the intended instrument, and reading each rule and its reason in
 section 9 is compliant review of the pairs it settles. Only pairs no rule settles are read
 one by one.
+
+## The review ledger and certification
+
+Human review is written into a ledger, and `--certify` checks it. The ledger is one
+Markdown file kept beside the input, holding one disposition table:
+
+```markdown
+| Kind | Finding | Disposition | Reason | Reviewer | Date | Fingerprint |
+|---|---|---|---|---|---|---|
+```
+
+One row per finding, keyed by identity rather than input line, because lines move when the
+input is edited. `Kind` is one of `candidate`, `gap`, `boundary`, `pair`, `span`; the
+`Finding` cell carries the identity — candidates and gaps read `producer -> consumer:
+flows`, unstated pairs `A -> B`, boundary findings the component's name, uncited spans
+`L7-9@<source sha256>`. `Reviewer` is the reviewer of record and `Date` when it reviewed;
+`Fingerprint` pins the content dispositioned — a certification record's blocker lines carry
+the current fingerprints to paste. Every cell but `Reason` is required. The reviewer of
+record must be someone other than whatever drafted the input: an independent human reviewer
+by default, a model only when the user explicitly pinned one.
+
+```bash
+python3 scripts/interface_matrix.py MATRIX-INPUT.md --certify MATRIX-INPUT.ledger.md
+```
+
+Start the ledger as nothing but the header row and certify once: every finding the report
+derives from the input comes back an `unreviewed:` blocker, named by identity and carrying
+its current fingerprint, so the refusal record doubles as the review worksheet. Certify
+with `--source` when the input cites one, or the uncited spans never enter review. An entry
+covers the finding whose identity it names when its fingerprint matches; the disposition
+text is the reviewer's judgment. Certification exits 0 when every ledger finding —
+candidates, gaps, boundary findings, unstated pairs and uncited spans — is dispositioned
+and none has drifted (feedback loops, self-dependencies and the class-rule audit are
+human-reviewed; the gate does not disposition them) — that is pass 3's completion — and
+exit 3 names every blocker:
+`drifted:` an entry whose finding is gone from the input or changed since disposition,
+`unreviewed:` a finding no entry covers. Every gap dispositioned with a `Disposition`
+starting `open` — `open-parked` is the gap you are not filling now — is listed in the
+record as an advisory, never a blocker: parked, not ignored. Under `--certify`, two active
+input rows sharing one `producer -> consumer: flows` identity also exit 1 (the ledger
+cannot tell them apart), as do the ledger's own bad rows: wrong width, unknown kind, a
+missing required cell, a duplicate identity, a second disposition table. Every completed
+run writes a record beside the ledger, `<ledger>.cert.md`, and prints it instead of the
+report (an exit-1 error writes nothing and leaves the previous record in place): the
+input, report and (when `--source` ran) source file bound by sha256, the gate result,
+every blocker and advisory, and the effective flags, which a later certification must
+replay exactly. A pass also stamps the same record into the ledger as its
+`## Certification record` section, replacing the section a previous pass stamped. The
+finished deliverable is the report, its certification record, the input, and the ledger —
+plus the source file when the review ran under `--source` — enough for any consumer to
+re-run certification and check the
+record's sha256 bindings against the files they were sent.
+
+Pinning follows one convention, shared with the `interface-matrix` skill: the optional
+`metadata:` keys a skill's own frontmatter may carry, each pinning a role to a model.
+They are documented once, in this skill's `SKILL.md` ("Model pins"); nothing about pins
+lives in the input file or the ledger.

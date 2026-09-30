@@ -24,7 +24,7 @@ here rather than editing it here.
 ```bash
 grep -E '^(import|from) ' scripts/check_plan.py scripts/interface_matrix.py
 ```
-Expected: only `argparse`, `difflib`, `graphlib`, `re`, `sys`. A third-party import is a defect.
+Expected: only `argparse`, `difflib`, `graphlib`, `hashlib`, `json`, `re`, `sys`. A third-party import is a defect.
 
 ```bash
 awk '$1 == "path" { p = $2 } $1 == "sha256" { print p, $2 }' \
@@ -62,12 +62,32 @@ counts it as unresolved nor blocks a step on it.
    python3 scripts/interface_matrix.py matrix-input.md > matrix-report.md
    python3 scripts/interface_matrix.py matrix-input.md --sample 0
    python3 scripts/interface_matrix.py matrix-input.md --source SOURCE.txt
+   python3 scripts/interface_matrix.py matrix-input.md --certify matrix-input.ledger.md
    ```
    `matrix-input.md` is your own file — name it whatever you like. Exit 0 = report written.
-   Exit 1 = a bad input row, named by input line. The input format and the report sections
-   are documented in the reference `references/MATRIX-INPUT.md`, beside this file.
+   Exit 1 = a bad input row, named by input line. `--certify` checks the review ledger:
+   exit 0 = certified, exit 3 = review not finished — the next procedure. The input format
+   and the report sections are documented in the reference `references/MATRIX-INPUT.md`,
+   beside this file.
 
-3. **Run pass 7.**
+3. **Certify a reviewed matrix.** Pass-3 review is written into a ledger kept beside the
+   input — one table, `Kind | Finding | Disposition | Reason | Reviewer | Date |
+   Fingerprint`, started as nothing but the header. Certify once:
+   ```bash
+   python3 scripts/interface_matrix.py matrix-input.md --certify matrix-input.ledger.md
+   ```
+   Exit 3: every finding the report derives comes back an `unreviewed:` blocker carrying
+   its current fingerprint — the refusal record (written beside the ledger by every
+   completed run)
+   doubles as the review worksheet. Disposition every finding it names, copying the
+   fingerprints from the record's blocker lines, then certify again: exit 0, a `certified`
+   record, and the record also stamped into the ledger as its `## Certification record`
+   section. Certify with `--source` when the input cites one and under the `--sample` the
+   review used; the finished deliverable is the report, the certification record, the
+   input, the ledger — and the source file when the review ran under `--source`. The ledger format and the certification record are documented in
+   `references/MATRIX-INPUT.md`.
+
+4. **Run pass 7.**
    ```bash
    python3 scripts/check_plan.py --inventory 01-inventory.md --interfaces 03-interfaces.md \
      --gaps 04-gap-register.md --packages 05-work-packages.md --ordering 06-ordering.md
@@ -76,7 +96,7 @@ counts it as unresolved nor blocks a step on it.
    2 = an input file does not hold the table its template defines. Fix in the pass that
    owns the failure, then rerun — never by editing the check.
 
-4. **Change a script.** Add or change a test in `scripts/test_check_plan.py` first and
+5. **Change a script.** Add or change a test in `scripts/test_check_plan.py` first and
    watch it fail, then change `scripts/check_plan.py`, then rerun the health checks. If you
    change `scripts/interface_matrix.py` or `scripts/test_interface_matrix.py`, change it
    upstream in the repo the pin file names first, then copy the new file here and update its
@@ -108,13 +128,19 @@ counts it as unresolved nor blocks a step on it.
 | CI's pin check fails with `pins share a basename` | Two `path` lines in `scripts/interface_matrix.UPSTREAM` end in the same file name, so both would be compared against the one local `scripts/<name>`. | Vendor the second file under a distinct name; the pin job maps each pin to `scripts/<basename of path>`. |
 | `warning: line N: table header misspells a Components, Interfaces or Rules column set` from `interface_matrix.py` (exit unchanged) | A table's header is a near-miss spelling of one of the input's column sets, so the whole table was skipped. | Fix the header's spelling; `references/MATRIX-INPUT.md` has the detection rule. |
 | CI fails on the pin check, printing the file, the pinned and the actual sha256 | That vendored file (`scripts/interface_matrix.py` or `scripts/test_interface_matrix.py`) no longer hashes to its `sha256` line in `scripts/interface_matrix.UPSTREAM`: it was edited here, or re-synced from upstream without updating the pin. | Decide which file is intended. If upstream's is, copy it in and set that pin's `sha256` to the new digest in the same commit; otherwise restore the pinned version from upstream at the path the pin names. Never edit a vendored copy in place. |
+| `drifted:` blockers (exit 3) | The input moved under the review: the finding is gone from the input (`no longer matches any ... finding`), or its content changed since disposition (the record names the current fingerprint). | A finding fixed in the input leaves the report, and its ledger row must go too — deleted, not superseded: the ledger has no `Status` column. A finding still present but edited needs its row re-reviewed — new fingerprint, new date; input rows are superseded, never reworded (`references/MATRIX-INPUT.md`). |
+| `error: the ledger's certification record declares --sample N but certification was invoked with --sample M` (exit 1; same wording for `--source`) | The record's flags pin the review, and `--certify` must replay them exactly — a run without `--source` cannot silently skip the span checks. | Rerun with the declared flags; the message names the flag and both values. To re-review under other flags, amend the ledger's certification-record section first, as the message says. |
+| `error: input rows at lines N and M share one interface identity (P -> C: flows); the review ledger cannot tell them apart` (exit 1, under `--certify`) | Two active interface rows share one `producer -> consumer: flows` — the identity the ledger keys on. | Distinguish the flows, or supersede or merge one of the rows, then certify again. |
+| `error: ledger row at line N ...` (exit 1) | A bad ledger row: wrong width, an unknown kind, a missing required cell, a duplicate identity — or a second disposition table in one ledger. | Fix the named row. The format — `Kind \| Finding \| Disposition \| Reason \| Reviewer \| Date \| Fingerprint`, kinds `candidate gap boundary pair span` — is documented in `references/MATRIX-INPUT.md`. |
 
 ## Rollback and recovery
 
-Neither script holds state or writes outside the report you redirect to stdout, so
-rollback is a file revert in whatever repository carries the skill folder. The filled-in
-pass artifacts are the work worth keeping; reports are disposable and regenerated by
-rerunning the scripts against them.
+Neither script holds state or writes outside the report you redirect to stdout —
+under `--certify`, also the record beside the ledger (`<ledger>.cert.md`) and the
+record section stamped into the ledger itself — so rollback is a file revert in
+whatever repository carries the skill folder. The filled-in pass artifacts are the
+work worth keeping; reports are disposable and regenerated by rerunning the scripts
+against them.
 
 ## Escalation
 
@@ -122,5 +148,10 @@ rerunning the scripts against them.
    escalation — and never by loosening the check.
 2. A script defect (exit 2 on a file that does follow the template, or a crash): open an
    issue with the artifact attached, and fix it on a branch with a failing test first.
-3. Method disputes — whether a gap is really USER, whether a loop is real, whether the
-   walking skeleton is thin enough — are human decisions and belong to the plan's reviewer.
+3. Certification refused (exit 3): the refusal record names every blocker — disposition
+   each `unreviewed:` finding, resolve or re-review each `drifted:` one, and certify
+   again. The refusal is the worksheet, not a verdict on the matrix; a bad ledger row
+   (exit 1) is an input error the ledger's author fixes.
+4. Method disputes — whether a gap is really USER, whether a loop is real, whether the
+   walking skeleton is thin enough — are human decisions and belong to the plan's reviewer
+   (pass 3's separation of duties and the optional Model pins say who may hold them).

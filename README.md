@@ -84,7 +84,9 @@ The report opens with the counts and the findings a reviewer reads:
 
 Eight sections in all here, ending at `## 8. Matrix`, the N² matrix itself; sections 9 and
 10 are conditional — a Rules table adds one, `--source` the other. The gap row above is what
-pass 4 turns into a register entry.
+pass 4 turns into a register entry. And the report is not pass 3's end: its findings are
+reviewed into a ledger and the matrix is certified against it —
+[Certifying the reviewed matrix](#certifying-the-reviewed-matrix) below.
 
 ## Install
 
@@ -120,6 +122,32 @@ inside the skill folder, with the `MATRIX-INPUT.md` above saved there:
 python3 scripts/interface_matrix.py MATRIX-INPUT.md > matrix-report.md
 ```
 
+### Certifying the reviewed matrix
+
+Pass 3 does not end at the report. Its findings are reviewed into a ledger kept beside the
+input, and the matrix is certified against it:
+
+```bash
+python3 scripts/interface_matrix.py MATRIX-INPUT.md --certify MATRIX-INPUT.ledger.md
+```
+
+The ledger is one table, `Kind | Finding | Disposition | Reason | Reviewer | Date |
+Fingerprint`, one row per finding, keyed by identity rather than input line. Start it as
+nothing but the header row and certify once: every finding comes back an `unreviewed:`
+blocker carrying its current fingerprint, so the refusal record doubles as the review
+worksheet. Disposition each finding — the fingerprints to paste are in the record — and
+certify again. Exit 0 writes `MATRIX-INPUT.ledger.cert.md` beside the ledger: the
+certification record, binding the input, the report and (under `--source`) the source file
+by sha256, plus the flags the review ran under, which every later certification must
+replay exactly. Exit 3 is the refusal, every blocker — a drifted or unreviewed finding —
+named in the record. The finished deliverable is the report, its certification record, the
+input, and the ledger — plus the source file when the review ran under `--source` — enough
+for any consumer to re-run
+certification. The reviewer of record must be someone other than whatever drafted the
+input: an independent human by default, a model only when one is explicitly pinned. The
+ledger format and the review duties are in
+[`references/MATRIX-INPUT.md`](skills/system-adoption-pipeline/references/MATRIX-INPUT.md).
+
 Pass 7 runs from the folder holding the filled-in artifacts. The shipped templates are
 already a passing example, so this is the command CI runs, from
 `assets/templates` inside the skill folder:
@@ -140,7 +168,7 @@ done-check holds.
 
 1. **Extract** — number the source's lines, extract every component with a citation, record every uncertainty as a hot spot.
 2. **Complete** — fill each component's fields, marking every one SOURCE (cited) or SILENT, and state the SILENT count.
-3. **Interface matrix** — `scripts/interface_matrix.py` builds the N² matrix (a design structure matrix) and reports missing components, interface gaps, unconsumed outputs, feedback loops and never-stated pairs. Input format and its up to ten sections (two conditional): [`references/MATRIX-INPUT.md`](skills/system-adoption-pipeline/references/MATRIX-INPUT.md).
+3. **Interface matrix** — `scripts/interface_matrix.py` builds the N² matrix (a design structure matrix) and reports missing components, interface gaps, unconsumed outputs, feedback loops and never-stated pairs; once its findings are reviewed into a ledger, it certifies the review (`--certify`). Input format and its up to ten sections (two conditional): [`references/MATRIX-INPUT.md`](skills/system-adoption-pipeline/references/MATRIX-INPUT.md).
 4. **Gap register** — every hot spot, SILENT field and interface gap gets exactly one class: SOURCE, RESEARCH, USER or DEFAULT. At most 10 USER questions.
 5. **Work packages** — the WBS 100% rule: every component in exactly one package, each with an owner and an observable acceptance check.
 6. **Ordering** — walking skeleton first, then rolling wave: wave 1 decomposed to atomic steps, later waves at package level.

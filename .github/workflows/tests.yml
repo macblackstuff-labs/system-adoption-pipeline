@@ -29,7 +29,7 @@ jobs:
         run: |
           imports=$(grep -hE '^(import|from) ' scripts/check_plan.py scripts/interface_matrix.py | sort -u)
           echo "$imports"
-          if echo "$imports" | grep -vE '^(import|from) (argparse|difflib|graphlib|re|sys)\b'; then
+          if echo "$imports" | grep -vE '^(import|from) (argparse|difflib|graphlib|hashlib|json|re|sys)\b'; then
             echo "::error::a third-party import is a defect: standard library only"
             exit 1
           fi
