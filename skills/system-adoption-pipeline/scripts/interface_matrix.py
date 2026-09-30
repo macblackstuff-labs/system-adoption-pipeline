@@ -17,8 +17,8 @@ uncited source spans as `L7-9@<source sha256>` — with a content fingerprint
 was dispositioned. Certification exits 0 when every finding of the five ledger
 kinds is dispositioned and none has drifted — feedback loops, self-dependencies
 and the class-rules audit are report findings a human reviews; the gate does
-not disposition them; 3 naming every blocker, entries whose finding drifted
-from the input as `drifted:` and findings no entry covers as `unreviewed:`;
+not disposition them; 3 naming every blocker — entries whose finding drifted
+out of the input as `drifted:` and findings no entry covers as `unreviewed:`;
 and 1 on a bad ledger row, a duplicate identity in the ledger or the input, a
 citing input certified without --source, a component name containing the
 identity delimiters ` -> ` or `: `, or an invocation whose flags do not replay
