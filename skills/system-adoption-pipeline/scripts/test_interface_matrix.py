@@ -1114,9 +1114,10 @@ TWO_COMPONENTS = (
 )
 
 # one finding of each kind the wildcard rule cannot settle: a candidate (line 22),
-# a gap (line 23) and all three boundary findings; the rule settles every classed pair
+# a gap (line 23) and all three boundary findings; the rule settles every classed pair.
+# No row cites a source: a citing input cannot be certified without --source
 CERT_INPUT = doc_rules(
-    "| Ingest | Store | rows | csv | cron | me | S:L1 |\n"
+    "| Ingest | Store | rows | csv | cron | me |  |\n"
     "| ? | Scorer | digest | csv | cron | me |  |\n"
     "| Ingest | Analyst | rows |  | ? | me |  |\n",
     "| * | * | none | every classed pair is settled |\n",
@@ -1156,22 +1157,26 @@ class TestCertification(unittest.TestCase):
         self.assertIn("- report: sha256 ", proc.stdout)
         self.assertIn("- flags: --sample 20\n", proc.stdout)
         self.assertIn("- blockers: none", proc.stdout)
-        self.assertIn("- advisories: 1", proc.stdout)
+        # the open gap plus every boundary finding dispositioned rather than
+        # resolved is carried as an advisory: what shipped stays visible
+        self.assertIn("- advisories: 4", proc.stdout)
         self.assertIn("gap Ingest -> Analyst: rows (input line 23, missing Format, "
                       "Trigger): open-parked — blocked on the vendor's format doc",
                       proc.stdout)
+        self.assertIn("boundary Ingest (nothing feeds it): explained — the "
+                      "pipeline's entry point", proc.stdout)
 
     def test_open_gap_is_an_advisory_and_a_filled_gap_is_not(self):
         # the gap is a finding either way; an open disposition is an advisory in
         # the record, a non-open one simply satisfies the gate
         text = doc(
-            "| Ingest | Store | rows |  | cron | me | S:L1 |\n"
-            "| Store | Ingest | acks | csv | cron | me | S:L1 |\n",
+            "| Ingest | Store | rows |  | cron | me |  |\n"
+            "| Store | Ingest | acks | csv | cron | me |  |\n",
             components=TWO_COMPONENTS,
         )
         gap = "Ingest -> Store: rows"
         line = lineno(text, "| Ingest | Store | rows |  | cron")
-        fingerprint = iface_fp("Ingest", "Store", "rows", "", "cron", "me", "S:L1")
+        fingerprint = iface_fp("Ingest", "Store", "rows", "", "cron", "me")
         opened = run_certify(text, ledger(
             row("gap", gap, "open-parked", "waiting on the vendor",
                 fingerprint=fingerprint)))
@@ -1184,6 +1189,51 @@ class TestCertification(unittest.TestCase):
                 fingerprint=fingerprint)))
         self.assertEqual(filled.returncode, 0, filled.stderr)
         self.assertIn("- advisories: none", filled.stdout)
+
+    def test_dispositioned_candidate_and_boundary_findings_are_advisories(self):
+        # a candidate or boundary finding may ship dispositioned, never
+        # silently: the record lists it, kind-named, until it is resolved
+        led = ledger(
+            row("candidate", "? -> Scorer: digest", "accepted",
+                "scope cut to the nightly digest run", fingerprint=CAND_FP),
+            row("gap", "Ingest -> Analyst: rows", "open-parked",
+                "blocked on the vendor's format doc", fingerprint=GAP_FP),
+            row("boundary", "Ingest", "explained", "the pipeline's entry point",
+                fingerprint=BOUNDARY_FP["Ingest"]),
+            row("boundary", "Scorer", "explained", "runs on a manual trigger",
+                fingerprint=BOUNDARY_FP["Scorer"]),
+            row("boundary", "Store", "explained", "the terminal sink",
+                fingerprint=BOUNDARY_FP["Store"]),
+        )
+        proc = run_certify(CERT_INPUT, led)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("- advisories: 5", proc.stdout)
+        self.assertIn("candidate ? -> Scorer: digest (input line 22): accepted — "
+                      "scope cut to the nightly digest run", proc.stdout)
+        self.assertIn("boundary Store (nothing consumes its output): explained — "
+                      "the terminal sink", proc.stdout)
+
+    def test_blank_flows_gap_round_trips_through_the_ledger(self):
+        # an empty Flows cell is a legitimate gap; its identity label is
+        # `producer -> consumer: ?` — a string a stripped ledger cell can hold
+        # and parse_finding maps back to the empty identity
+        text = doc(
+            "| Ingest | Store |  | ? | cron | me |  |\n"
+            "| Store | Ingest | acks | csv | cron | me |  |\n",
+            components=TWO_COMPONENTS,
+        )
+        line = lineno(text, "| Ingest | Store |  |")
+        fingerprint = iface_fp("Ingest", "Store", "", "?", "cron", "me")
+        refused = run_certify(text, LEDGER_HEAD)
+        self.assertEqual(refused.returncode, 3, refused.stderr)
+        self.assertIn("unreviewed: interface gap Ingest -> Store: ? (input line "
+                      "%d, missing Flows, Format) has no disposition "
+                      "(fingerprint %s)" % (line, fingerprint), refused.stdout)
+        ok = run_certify(text, ledger(
+            row("gap", "Ingest -> Store: ?", "filled",
+                "the flows cell is the ack payload", fingerprint=fingerprint)))
+        self.assertEqual(ok.returncode, 0, ok.stderr)
+        self.assertIn("- gate: certified", ok.stdout)
 
     def test_unresolved_candidate_blocks(self):
         proc = run_certify(CERT_INPUT, ledger(
@@ -1204,7 +1254,7 @@ class TestCertification(unittest.TestCase):
                       proc.stdout)
 
     def test_unstated_pair_without_disposition_blocks(self):
-        text = doc("| Ingest | Store | rows | csv | cron | me | S:L1 |\n",
+        text = doc("| Ingest | Store | rows | csv | cron | me |  |\n",
                    components=TWO_COMPONENTS)
         proc = run_certify(text, ledger(
             row("boundary", "Ingest", "explained", "the entry point",
@@ -1263,9 +1313,8 @@ class TestCertification(unittest.TestCase):
         self.assertIn("unknown kind 'mystery'", proc.stderr)
 
     def test_ledger_row_for_an_unknown_finding_is_drift_not_an_error(self):
-        # U1 exited 1 here; R5's drift semantics supersede that: an entry whose
-        # finding matches nothing in the current input is drift, so the review
-        # re-opens (exit 3) instead of calling the ledger row malformed
+        # an entry whose finding matches nothing in the current input is drift:
+        # the review re-opens (exit 3) instead of a malformed-row error
         led = FULL_LEDGER + row("boundary", "Ghost", "explained", "not a component",
                                 fingerprint=fp("Ghost", "anything"))
         proc = run_certify(CERT_INPUT, led)
@@ -1281,6 +1330,28 @@ class TestCertification(unittest.TestCase):
         self.assertEqual(proc.returncode, 1, proc.stdout)
         self.assertIn("L2-6", proc.stderr)
         self.assertIn("--source", proc.stderr)
+
+    def test_citing_input_certified_without_source_exits_1(self):
+        # the first certify run is the only window in which span review can be
+        # skipped: an input that cites a source must certify with --source
+        text = doc("| Ingest | Store | rows | csv | cron | me | S:L1 |\n",
+                   components=TWO_COMPONENTS)
+        proc = run_certify(text, LEDGER_HEAD)
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("cites", proc.stderr)
+        self.assertIn("--source", proc.stderr)
+        self.assertIn("uncited spans", proc.stderr)
+        self.assertIn("L1", proc.stderr)
+
+    def test_citing_input_certified_with_source_is_a_normal_refusal(self):
+        # with --source the same input proceeds to the gate: the refusal names
+        # the uncited span, not the guard
+        text = doc("| Ingest | Store | rows | csv | cron | me | S:L1 |\n",
+                   components=TWO_COMPONENTS)
+        proc = run_certify_source(text, LEDGER_HEAD, SOURCE)
+        self.assertEqual(proc.returncode, 3, proc.stderr)
+        self.assertIn("unreviewed: uncited span L2-6@", proc.stdout)
+        self.assertNotIn("uncited spans are reviewed", proc.stderr)
 
     def test_duplicate_ledger_row_exits_1_naming_both_lines(self):
         led = FULL_LEDGER + row("boundary", "Scorer", "explained", "twice",
@@ -1299,6 +1370,29 @@ class TestCertification(unittest.TestCase):
         proc = run_certify(CERT_INPUT, led)
         self.assertEqual(proc.returncode, 1, proc.stdout)
         self.assertIn("both disposition gap", proc.stderr)
+
+    def test_table_after_the_record_section_exits_1(self):
+        # a disposition table placed after a certification record is content
+        # the record-section scan must not swallow
+        led = (FULL_LEDGER.rstrip("\n") + "\n\n## Certification record\n\n"
+               + "- flags: --sample 20\n\n"
+               + "| Kind | Finding | Disposition | Reason | Reviewer | Date | Fingerprint |\n"
+               + "|---|---|---|---|---|---|---|\n"
+               + row("gap", "Ghost -> Nobody: x", "filled", "a second table"))
+        proc = run_certify(CERT_INPUT, led)
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("cannot live inside a certification record", proc.stderr)
+        self.assertIn("line %d" % (led[:led.rindex("| Kind |")].count("\n") + 1),
+                      proc.stderr)
+
+    def test_row_after_the_record_section_exits_1(self):
+        led = (FULL_LEDGER.rstrip("\n") + "\n\n## Certification record\n\n"
+               + "- flags: --sample 20\n\n"
+               + row("mystery", "line 22", "resolved", "no such kind"))
+        proc = run_certify(CERT_INPUT, led)
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("cannot live inside a certification record", proc.stderr)
+        self.assertIn("line %d" % lineno(led, "| mystery |"), proc.stderr)
 
     def test_header_only_ledger_lists_every_finding(self):
         proc = run_certify(CERT_INPUT, LEDGER_HEAD)
@@ -1324,8 +1418,8 @@ class TestCertification(unittest.TestCase):
 
     def test_finding_free_input_certifies_with_an_empty_ledger(self):
         text = doc(
-            "| Ingest | Store | rows | csv | cron | me | S:L1 |\n"
-            "| Store | Ingest | acks | csv | cron | me | S:L1 |\n",
+            "| Ingest | Store | rows | csv | cron | me |  |\n"
+            "| Store | Ingest | acks | csv | cron | me |  |\n",
             components=TWO_COMPONENTS,
         )
         proc = run_certify(text, LEDGER_HEAD)
@@ -1364,6 +1458,21 @@ class TestCertifyIdentity(unittest.TestCase):
         self.assertIn("interfaces with gaps: 1", plain.stdout)
         self.assertIn("specified interfaces: 1", plain.stdout)
 
+    def test_component_name_with_identity_delimiters_exits_1_under_certify(self):
+        # `A -> B` cannot be expressed as a Finding identity no paste can
+        # satisfy; certification refuses the name, generation is unchanged
+        components = ("| Component | Kind | Notes |\n|---|---|---|\n"
+                      "| A -> B |  | quirky |\n| C |  | plain |\n\n")
+        text = doc("| A -> B | C | flows | csv | cron | me |  |\n",
+                   components=components)
+        proc = run_certify(text, LEDGER_HEAD)
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("component names cannot contain", proc.stderr)
+        self.assertIn("line %d" % lineno(text, "| A -> B |"), proc.stderr)
+        plain = run(text)
+        self.assertEqual(plain.returncode, 0, plain.stderr)
+        self.assertIn("specified interfaces: 1", plain.stdout)
+
 
 def drift_doc(rows):
     """The drift fixture: gap rows plus a wildcard rule that settles every
@@ -1391,13 +1500,13 @@ DRIFT_LEDGER = ledger(
 
 
 class TestCertifyDrift(unittest.TestCase):
-    """R5: edits after review re-open exactly the rows they touch."""
+    """Edits after review re-open exactly the rows they touch."""
 
     def test_appended_unrelated_row_still_certifies(self):
         # a new specified row on an already-stated pair changes no finding:
         # identity keys survive unrelated edits
         text = drift_doc(
-            DRIFT_ROWS + ["| Ingest | Store | batches | csv | cron | me | S:L1 |\n"])
+            DRIFT_ROWS + ["| Ingest | Store | batches | csv | cron | me |  |\n"])
         proc = run_certify(text, DRIFT_LEDGER)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("- gate: certified", proc.stdout)
@@ -1496,26 +1605,38 @@ class TestCertifyDrift(unittest.TestCase):
                           "matches any span finding in the input"
                           % (old_sha, lineno(led, "narrative prose")),
                           second.stdout)
+            # the stamped record also binds the source file itself: editing it
+            # re-opens the review even before any span finding is judged
+            self.assertIn("drifted: source changed since the last certified run",
+                          second.stdout)
             self.assertIn("unreviewed: uncited span L2-7@%s (of " % new_sha,
                           second.stdout)
             self.assertIn(") is unread (fingerprint %s)" % fp(new_sha, 2, 7),
                           second.stdout)
-            self.assertIn("(1 drifted, 1 unreviewed)", second.stderr)
+            self.assertIn("(2 drifted, 1 unreviewed)", second.stderr)
         finally:
             rm_dir(d)
 
 
 # finding-free under any flags: both pairs stated, both components fed and
-# consumed, and every source line cited
+# consumed, and every source line cited — so the --source runs pass too
 FLAG_INPUT = doc(
     "| Ingest | Store | rows | csv | cron | me | S:L1-6 |\n"
     "| Store | Ingest | acks | csv | cron | me | S:L1-6 |\n",
     components=TWO_COMPONENTS,
 )
 
+# the same input without citations, for flag tests that certify without
+# --source (a citing input cannot be certified without it)
+FLAG_INPUT_NOCITE = doc(
+    "| Ingest | Store | rows | csv | cron | me |  |\n"
+    "| Store | Ingest | acks | csv | cron | me |  |\n",
+    components=TWO_COMPONENTS,
+)
+
 
 class TestCertifyFlags(unittest.TestCase):
-    """KTD3: --certify replays the recorded review exactly."""
+    """--certify replays the recorded review exactly."""
 
     def test_certify_without_the_declared_source_flag_exits_1(self):
         d = open_dir(FLAG_INPUT, LEDGER_HEAD, SOURCE)
@@ -1532,7 +1653,7 @@ class TestCertifyFlags(unittest.TestCase):
             rm_dir(d)
 
     def test_certify_with_the_wrong_sample_exits_1_and_the_recorded_one_passes(self):
-        d = open_dir(FLAG_INPUT, LEDGER_HEAD)
+        d = open_dir(FLAG_INPUT_NOCITE, LEDGER_HEAD)
         try:
             self.assertEqual(run_in(d, "--sample", "0").returncode, 0)
             wrong = run_in(d)  # the default is 20, the record pins 0
@@ -1545,12 +1666,11 @@ class TestCertifyFlags(unittest.TestCase):
             rm_dir(d)
 
     def test_undeclared_source_flag_exits_1(self):
-        d = open_dir(FLAG_INPUT, LEDGER_HEAD)
+        # a hand-pinned record section declares no --source (a citing input
+        # can no longer stamp such a section: the certify guard refuses it)
+        led = LEDGER_HEAD + "\n## Certification record\n\n- flags: --sample 20\n"
+        d = open_dir(FLAG_INPUT_NOCITE, led, SOURCE)
         try:
-            self.assertEqual(run_in(d).returncode, 0)
-            with open(os.path.join(d, "source.txt"), "w", encoding="utf-8",
-                      newline="\n") as fh:
-                fh.write(SOURCE)
             extra = run_in(d, "--source", os.path.join(d, "source.txt"))
             self.assertEqual(extra.returncode, 1, extra.stdout)
             self.assertIn("no --source", extra.stderr)
@@ -1559,10 +1679,64 @@ class TestCertifyFlags(unittest.TestCase):
 
     def test_hand_written_record_section_pins_flags_before_any_pass(self):
         led = LEDGER_HEAD + "\n## Certification record\n\n- flags: --sample 0\n"
-        d = open_dir(FLAG_INPUT, led)
+        d = open_dir(FLAG_INPUT_NOCITE, led)
         try:
             self.assertEqual(run_in(d).returncode, 1)
             self.assertEqual(run_in(d, "--sample", "0").returncode, 0)
+        finally:
+            rm_dir(d)
+
+
+class TestCertifyAnchor(unittest.TestCase):
+    """The stamped record is a replay anchor: the input and source sha256 it
+    binds are re-derived and compared on every later certification run."""
+
+    def test_post_review_edit_of_a_stated_row_reopens_the_review(self):
+        # a fully-specified input has no finding to fingerprint; the stamped
+        # input sha is what re-opens the review when the input is edited
+        d = open_dir(FLAG_INPUT_NOCITE, LEDGER_HEAD)
+        try:
+            first = run_in(d)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            with open(os.path.join(d, "inventory.md"), "w", encoding="utf-8",
+                      newline="\n") as fh:
+                fh.write(FLAG_INPUT_NOCITE.replace("rows | csv", "rows | xml"))
+            second = run_in(d)
+            self.assertEqual(second.returncode, 3, second.stdout)
+            self.assertIn("(1 drifted, 0 unreviewed)", second.stderr)
+            self.assertIn("drifted: input changed since the last certified run",
+                          second.stdout)
+            self.assertIn("- blockers: 1", second.stdout)
+            # the ledger keeps its stamped section — the last passing run —
+            # while the standalone record is the refused latest run
+            self.assertIn("- gate: certified", cat(d, "review.md"))
+            self.assertIn("- gate: refused", cat(d, "review.cert.md"))
+        finally:
+            rm_dir(d)
+
+    def test_tampered_record_input_sha_refuses(self):
+        d = open_dir(FLAG_INPUT_NOCITE, LEDGER_HEAD)
+        try:
+            self.assertEqual(run_in(d).returncode, 0)
+            stamped = cat(d, "review.md")
+            bad = re.sub(r"^- input: (.*) \(sha256 [0-9a-f]+\)$",
+                         r"- input: \1 (sha256 %s)" % ("0" * 64), stamped,
+                         flags=re.M)
+            self.assertNotEqual(bad, stamped)
+            with open(os.path.join(d, "review.md"), "w", encoding="utf-8",
+                      newline="\n") as fh:
+                fh.write(bad)
+            proc = run_in(d)
+            self.assertEqual(proc.returncode, 3, proc.stdout)
+            self.assertIn("drifted: input changed since the last certified run",
+                          proc.stdout)
+            # a line that cannot be a binding at all is a bad record section
+            broken = re.sub(r"^- input: .*$", "- input: not-a-binding",
+                            stamped, flags=re.M)
+            with open(os.path.join(d, "review.md"), "w", encoding="utf-8",
+                      newline="\n") as fh:
+                fh.write(broken)
+            self.assertEqual(run_in(d).returncode, 1)
         finally:
             rm_dir(d)
 
@@ -1610,7 +1784,7 @@ class TestCertifyRecord(unittest.TestCase):
             rm_dir(d)
 
     def test_record_is_reproducible_and_the_ledger_section_stamped_once(self):
-        d = open_dir(FLAG_INPUT, LEDGER_HEAD)
+        d = open_dir(FLAG_INPUT_NOCITE, LEDGER_HEAD)
         try:
             first = run_in(d)
             self.assertEqual(first.returncode, 0, first.stderr)
@@ -1638,6 +1812,23 @@ class TestCertifyRecord(unittest.TestCase):
             self.assertIn("- blockers: 5", record)
             self.assertIn("  - unreviewed: ", record)
             self.assertNotIn("## Certification record", cat(d, "review.md"))
+        finally:
+            rm_dir(d)
+
+    def test_after_a_refusal_the_record_and_the_ledger_section_disagree(self):
+        # the section stamped inside the ledger is the last PASSING run — the
+        # replay anchor; the standalone record reflects the latest completed
+        # run, refused here
+        d = open_dir(FLAG_INPUT_NOCITE, LEDGER_HEAD)
+        try:
+            self.assertEqual(run_in(d).returncode, 0)
+            with open(os.path.join(d, "inventory.md"), "w", encoding="utf-8",
+                      newline="\n") as fh:
+                fh.write(FLAG_INPUT_NOCITE.replace("rows | csv", "rows | xml"))
+            refused = run_in(d)
+            self.assertEqual(refused.returncode, 3, refused.stderr)
+            self.assertIn("- gate: refused", cat(d, "review.cert.md"))
+            self.assertIn("- gate: certified", cat(d, "review.md"))
         finally:
             rm_dir(d)
 
@@ -1687,7 +1878,8 @@ class TestCertifyCycle(unittest.TestCase):
             ok = run_in(d)
             self.assertEqual(ok.returncode, 0, ok.stderr)
             self.assertIn("- gate: certified", ok.stdout)
-            # 4. edit a reviewed row's flows cell
+            # 4. edit a reviewed row's flows cell; the stamped record section
+            #    anchored that pass, so it goes with the input it bound
             with open(os.path.join(d, "inventory.md"), "w", encoding="utf-8",
                       newline="\n") as fh:
                 fh.write(drift_doc([
@@ -1695,6 +1887,9 @@ class TestCertifyCycle(unittest.TestCase):
                     DRIFT_ROWS[1],
                     DRIFT_ROWS[2],
                 ]))
+            with open(os.path.join(d, "review.md"), "w", encoding="utf-8",
+                      newline="\n") as fh:
+                fh.write(ledger(*entries))
             # 5. certify: exactly that row re-opened, drifted and unreviewed
             drift = run_in(d)
             self.assertEqual(drift.returncode, 3, drift.stderr)

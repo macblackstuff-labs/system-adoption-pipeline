@@ -177,22 +177,27 @@ derives from the input comes back an `unreviewed:` blocker, named by identity an
 its current fingerprint, so the refusal record doubles as the review worksheet. Certify
 with `--source` when the input cites one, or the uncited spans never enter review. An entry
 covers the finding whose identity it names when its fingerprint matches; the disposition
-text is the reviewer's judgment. Certification exits 0 when every finding is dispositioned
-and none has drifted — that is pass 3's completion — and exit 3 names every blocker:
+text is the reviewer's judgment. Certification exits 0 when every ledger finding —
+candidates, gaps, boundary findings, unstated pairs and uncited spans — is dispositioned
+and none has drifted (feedback loops, self-dependencies and the class-rule audit are
+human-reviewed; the gate does not disposition them) — that is pass 3's completion — and
+exit 3 names every blocker:
 `drifted:` an entry whose finding is gone from the input or changed since disposition,
 `unreviewed:` a finding no entry covers. Every gap dispositioned with a `Disposition`
 starting `open` — `open-parked` is the gap you are not filling now — is listed in the
 record as an advisory, never a blocker: parked, not ignored. Under `--certify`, two active
 input rows sharing one `producer -> consumer: flows` identity also exit 1 (the ledger
 cannot tell them apart), as do the ledger's own bad rows: wrong width, unknown kind, a
-missing required cell, a duplicate identity, a second disposition table. Every run writes
-a record beside the ledger, `<ledger>.cert.md`, and prints it instead of the report: the
+missing required cell, a duplicate identity, a second disposition table. Every completed
+run writes a record beside the ledger, `<ledger>.cert.md`, and prints it instead of the
+report (an exit-1 error writes nothing and leaves the previous record in place): the
 input, report and (when `--source` ran) source file bound by sha256, the gate result,
 every blocker and advisory, and the effective flags, which a later certification must
 replay exactly. A pass also stamps the same record into the ledger as its
 `## Certification record` section, replacing the section a previous pass stamped. The
-finished deliverable is four files shipped together: the report, its certification record,
-the input, and the ledger — enough for any consumer to re-run certification and check the
+finished deliverable is the report, its certification record, the input, and the ledger —
+plus the source file when the review ran under `--source` — enough for any consumer to
+re-run certification and check the
 record's sha256 bindings against the files they were sent.
 
 Pinning follows one convention, shared with the `interface-matrix` skill: the optional

@@ -140,8 +140,9 @@ certify again. Exit 0 writes `MATRIX-INPUT.ledger.cert.md` beside the ledger: th
 certification record, binding the input, the report and (under `--source`) the source file
 by sha256, plus the flags the review ran under, which every later certification must
 replay exactly. Exit 3 is the refusal, every blocker — a drifted or unreviewed finding —
-named in the record. The finished deliverable is four files shipped together: the report,
-its certification record, the input, and the ledger — enough for any consumer to re-run
+named in the record. The finished deliverable is the report, its certification record, the
+input, and the ledger — plus the source file when the review ran under `--source` — enough
+for any consumer to re-run
 certification. The reviewer of record must be someone other than whatever drafted the
 input: an independent human by default, a model only when one is explicitly pinned. The
 ledger format and the review duties are in

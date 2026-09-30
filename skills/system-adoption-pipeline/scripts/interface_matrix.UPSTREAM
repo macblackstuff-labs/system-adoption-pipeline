@@ -3,6 +3,6 @@
 repo macblackstuff/interface-matrix
 tag v0.4.0
 path skills/interface-matrix/scripts/interface_matrix.py
-sha256 e4d68303fba4a884634e717795082a12a7bbf06c6a6d1eaf605c289b76aa4e4d
+sha256 98e5856431c058153714c138583291e0cf8f9f7354caa0891bf3e612c976a70a
 path skills/interface-matrix/scripts/test_interface_matrix.py
-sha256 2c75c8bba7d346ffba4c36dc2c361c1266ae255c6158f2ba94b27b9590b7508d
+sha256 91581976ce384f953810ffbc420bddf117e21bda9915338507d2bc0770ad3cf6

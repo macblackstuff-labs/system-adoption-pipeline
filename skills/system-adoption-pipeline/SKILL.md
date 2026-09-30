@@ -116,8 +116,10 @@ Review is written into a ledger kept beside the input: one table,
 finding, keyed by identity rather than input line — the format is documented in
 `references/MATRIX-INPUT.md`. Start it as nothing but the header row and certify once:
 every finding comes back an `unreviewed:` blocker carrying its current fingerprint, so the
-refusal record doubles as the review worksheet. `--certify` exits 0 only when every finding
-the report derives from the input is dispositioned and none has drifted; exit 3 names every
+refusal record doubles as the review worksheet. `--certify` exits 0 only when every ledger
+finding — candidates, gaps, boundary findings, unstated pairs and uncited spans — is
+dispositioned and none has drifted (feedback loops, self-dependencies and the class-rule
+audit are human-reviewed; the gate does not disposition them); exit 3 names every
 blocker — `drifted:` an entry whose finding is gone from the input or changed since
 disposition, `unreviewed:` a finding no entry covers — and a passing run's flags are the
 ones every later certification must replay exactly. A gap not filled now is parked, not

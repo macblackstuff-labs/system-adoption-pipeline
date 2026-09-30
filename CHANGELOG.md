@@ -12,7 +12,10 @@
   gains the certification gate: `--certify LEDGER` checks the input against an
   identity-keyed review ledger, exits 3 naming every `drifted:`/`unreviewed:` blocker,
   writes a certification record beside the ledger, and carries `open` gap dispositions as
-  advisories. Its self-check is now 115 tests.
+  advisories (dispositioned candidates and boundary findings list as advisories too, so
+  what ships is visible). The stamped record is a verified replay anchor — input or source
+  sha drift after a pass re-opens the review — and a citing input certified without
+  `--source` exits 1. Its self-check is now 125 tests.
 - Pass 3's done-check requires the matrix to certify: `--certify` exits 0, with the review
   recorded in the ledger.
 - Pass 3's review is separation of duties, reworded in SKILL.md and the README: the

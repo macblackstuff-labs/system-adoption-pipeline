@@ -77,13 +77,14 @@ counts it as unresolved nor blocks a step on it.
    python3 scripts/interface_matrix.py matrix-input.md --certify matrix-input.ledger.md
    ```
    Exit 3: every finding the report derives comes back an `unreviewed:` blocker carrying
-   its current fingerprint — the refusal record (written beside the ledger on every run)
+   its current fingerprint — the refusal record (written beside the ledger by every
+   completed run)
    doubles as the review worksheet. Disposition every finding it names, copying the
    fingerprints from the record's blocker lines, then certify again: exit 0, a `certified`
    record, and the record also stamped into the ledger as its `## Certification record`
    section. Certify with `--source` when the input cites one and under the `--sample` the
-   review used; the finished deliverable is four files — report, certification record,
-   input, ledger. The ledger format and the certification record are documented in
+   review used; the finished deliverable is the report, the certification record, the
+   input, the ledger — and the source file when the review ran under `--source`. The ledger format and the certification record are documented in
    `references/MATRIX-INPUT.md`.
 
 4. **Run pass 7.**
