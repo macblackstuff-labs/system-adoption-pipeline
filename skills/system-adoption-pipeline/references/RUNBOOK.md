@@ -24,7 +24,7 @@ here rather than editing it here.
 ```bash
 grep -E '^(import|from) ' scripts/check_plan.py scripts/interface_matrix.py
 ```
-Expected: only `argparse`, `difflib`, `graphlib`, `re`, `sys`. A third-party import is a defect.
+Expected: only `argparse`, `difflib`, `graphlib`, `hashlib`, `json`, `re`, `sys`. A third-party import is a defect.
 
 ```bash
 awk '$1 == "path" { p = $2 } $1 == "sha256" { print p, $2 }' \

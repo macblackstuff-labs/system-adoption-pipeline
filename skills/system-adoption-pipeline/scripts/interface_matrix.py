@@ -4,11 +4,32 @@
 Input: one Markdown file holding a Components table and an Interfaces table.
 Output: a deterministic Markdown report on stdout. Exit 1 on a bad input row.
 Stdlib only.
+
+With --certify LEDGER the same input is certified instead of reported. The
+ledger is a Markdown file kept beside the input and written during review: one
+disposition table, columns `Kind | Finding | Disposition | Reason | Reviewer |
+Date | Fingerprint`, keying every finding by stable identity rather than input
+line — interface-row findings (candidates, gaps) as `producer -> consumer:
+flows`, unstated pairs as `A -> B`, boundary findings by component name,
+uncited source spans as `L7-9@<source sha256>` — with a content fingerprint
+(the record's blocker lines carry current fingerprints to paste) pinning what
+was dispositioned. Certification exits 0 when every finding is dispositioned;
+3 naming every blocker, entries whose finding drifted from the input as
+`drifted:` and findings no entry covers as `unreviewed:`; and 1 on a bad
+ledger row, a duplicate identity in the ledger or the input, or an invocation
+whose flags do not replay the ones the ledger's `## Certification record`
+section declares. Every run writes a standalone certification record beside
+the ledger (<ledger>.cert.md) binding the input, report and (when --source
+ran) source sha256, the gate result and the effective flags; a pass also
+stamps the same record into the ledger as its `## Certification record`
+section.
 """
 
 import argparse
 import difflib
 import graphlib
+import hashlib
+import json
 import re
 import sys
 
@@ -17,6 +38,23 @@ INTERFACE_COLUMNS = ("producer", "consumer", "flows", "format", "trigger", "owne
 RULE_COLUMNS = ("producer class", "consumer class", "disposition", "reason")
 ATTRS = ("Flows", "Format", "Trigger", "Owner")
 DISPOSITIONS = ("none", "review")
+LEDGER_COLUMNS = ("kind", "finding", "disposition", "reason", "reviewer",
+                  "date", "fingerprint")
+LEDGER_KINDS = ("candidate", "gap", "boundary", "pair", "span")
+KIND_NOUNS = {
+    "candidate": "missing-component candidate",
+    "gap": "interface gap",
+    "boundary": "boundary finding",
+    "pair": "unstated pair",
+    "span": "uncited span",
+}
+KIND_VERBS = {
+    "candidate": "is unresolved",
+    "gap": "has no disposition",
+    "boundary": "is unexplained",
+    "pair": "has no disposition",
+    "span": "is unread",
+}
 CITE = re.compile(r"(?<![A-Za-z0-9])L(\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*)")
 
 
@@ -421,7 +459,8 @@ def spread(pairs, sample_n, order):
 
 
 def coverage(cites, path):
-    """Report lines for `--source`: which source lines nothing cites. Exit 1 on L>EOF."""
+    """Report lines and uncited spans for `--source`: which source lines nothing
+    cites. Returns (lines, spans as (first, last)); exit 1 on L>EOF."""
     with open(path, encoding="utf-8", errors="replace") as fh:
         lines = fh.read().splitlines()
     bad = sorted({(n, ln) for ln, n, _ in cites if n > len(lines) or n < 1})
@@ -458,35 +497,29 @@ def coverage(cites, path):
     else:
         out.append("Every non-blank source line is cited.")
     out.append("")
-    return out
+    return out, spans
 
 
-def report(names, external, specified, gaps, nones, candidates, retired, class_of,
-           rules=(), sample_n=20, cov=None, has_rules=False):
+def span_label(span):
+    """`L7` or `L7-9`, the label the coverage section and a ledger row share."""
+    a, b = span
+    return "L%d" % a if a == b else "L%d-%d" % (a, b)
+
+
+def edges_of(specified, gaps, nones):
+    """Stated pairs and their matrix marks: `X` specified, `g` gap; a `none` stated."""
     edge_of = {}
     for iface in specified:
         edge_of[(iface["producer"], iface["consumer"])] = "X"
     for iface in gaps:
         edge_of.setdefault((iface["producer"], iface["consumer"]), "g")
     stated = set(edge_of) | {(i["producer"], i["consumer"]) for i in nones}
+    return edge_of, stated
 
-    edges = sorted(k for k in edge_of if k[0] != k[1])
-    selfdeps = sorted({a for a, b in edge_of if a == b})
-    blocks = partition(names, edges)
-    order = [n for block in blocks for n in block]
-    loops = [b for b in blocks if len(b) > 1]
 
-    ins = {n: 0 for n in names}
-    outs = {n: 0 for n in names}
-    for a, b in edges:
-        outs[a] += 1
-        ins[b] += 1
-    internal = [n for n in names if n not in external]
-    isolated = [n for n in internal if not ins[n] and not outs[n]]
-    unfed = [n for n in internal if not ins[n] and outs[n]]
-    unconsumed = [n for n in internal if not outs[n] and ins[n]]
-
-    unstated = [
+def unstated_pairs(names, external, stated):
+    """Pairs no row states: neither an interface, a gap nor an explicit `none`."""
+    return [
         (a, b)
         for a in names
         for b in names
@@ -495,10 +528,33 @@ def report(names, external, specified, gaps, nones, candidates, retired, class_o
         and not (a in external and b in external)
     ]
 
-    active_rules = [r for r in rules if not superseded(r["status"])]
 
-    unclassed = [n for n in names if not class_of.get(n, "")]
+def boundary(names, external, edges):
+    """Internal components by boundary state: (internal, unfed, unconsumed, isolated).
 
+    Nobody feeds an unfed component, nothing consumes an unconsumed one's output,
+    an isolated one has no interface at all. A self-dependency is not an edge
+    here: it neither feeds nor consumes anyone else.
+    """
+    ins = {n: 0 for n in names}
+    outs = {n: 0 for n in names}
+    for a, b in edges:
+        outs[a] += 1
+        ins[b] += 1
+    internal = [n for n in names if n not in external]
+    return (internal,
+            [n for n in internal if not ins[n] and outs[n]],
+            [n for n in internal if not outs[n] and ins[n]],
+            [n for n in internal if not ins[n] and not outs[n]])
+
+
+def settle(pairs, edge_of, rules, class_of):
+    """Match unstated pairs against the active class rules, as report() renders them.
+
+    Returns (active_rules, residue, matched, settled, by_rule, overrides);
+    `residue` is the pairs no `none` rule settled — the pairs a review must
+    disposition one by one.
+    """
     def side(want, name):
         """`*` matches any classed component; a blank Class matches nothing."""
         cls = class_of.get(name, "")
@@ -507,10 +563,11 @@ def report(names, external, specified, gaps, nones, candidates, retired, class_o
     def hit(rule, a, b):
         return side(rule["producer"], a) and side(rule["consumer"], b)
 
+    active_rules = [r for r in rules if not superseded(r["status"])]
     matched = {r["line"]: 0 for r in active_rules}
     settled = {r["line"]: 0 for r in active_rules}
     residue, by_rule = [], 0
-    for a, b in unstated:
+    for a, b in pairs:
         hits = [r for r in active_rules if hit(r, a, b)]
         for r in hits:
             matched[r["line"]] += 1
@@ -528,6 +585,27 @@ def report(names, external, specified, gaps, nones, candidates, retired, class_o
         for r in active_rules
         if r["disposition"] == "none" and hit(r, a, b)
     ]
+    return active_rules, residue, matched, settled, by_rule, overrides
+
+
+def report(names, external, specified, gaps, nones, candidates, retired, class_of,
+           rules=(), sample_n=20, cov=None, has_rules=False):
+    edge_of, stated = edges_of(specified, gaps, nones)
+
+    edges = sorted(k for k in edge_of if k[0] != k[1])
+    selfdeps = sorted({a for a, b in edge_of if a == b})
+    blocks = partition(names, edges)
+    order = [n for block in blocks for n in block]
+    loops = [b for b in blocks if len(b) > 1]
+
+    internal, unfed, unconsumed, isolated = boundary(names, external, edges)
+
+    unstated = unstated_pairs(names, external, stated)
+
+    active_rules, residue, matched, settled, by_rule, overrides = settle(
+        unstated, edge_of, rules, class_of)
+
+    unclassed = [n for n in names if not class_of.get(n, "")]
 
     out = []
     w = out.append
@@ -663,9 +741,341 @@ def report(names, external, specified, gaps, nones, candidates, retired, class_o
     return "\n".join(out).rstrip("\n") + "\n"
 
 
+def record_heading(line):
+    """True for a heading of any level naming the certification record."""
+    text = line.strip()
+    return text.startswith("#") and text.lstrip("#").strip().lower() == "certification record"
+
+
+def parse_declared_flags(value, ln):
+    """The certification record's flags line, back into (--sample, --source)."""
+    m = re.match(r"^--sample (\d+)(?: --source (.+))?$", value)
+    if not m:
+        die("certification record at line %d: flags %r must read "
+            "'--sample N [--source PATH]'" % (ln, value))
+    return (int(m.group(1)), m.group(2))
+
+
+def read_ledger(path):
+    """Ledger disposition rows and the flags its certification record pins.
+
+    Returns (rows, declared): rows are (kind, finding, disposition, reason,
+    reviewer, date, fingerprint, line) from the ledger's one disposition table
+    — the one table naming Kind and Finding; declared is the (--sample N,
+    --source PATH) the ledger's `## Certification record` section declares, or
+    None when the ledger pins none. A row of the wrong width, an unknown kind,
+    or a row without a finding, disposition, reviewer, date and fingerprint is
+    bad input, exactly like a bad row of the input file.
+    """
+    with open(path, encoding="utf-8") as fh:
+        lines = fh.read().splitlines()
+    rows = []
+    seen = 0
+    rec_seen = 0
+    declared = None  # (flags, line) once a `- flags:` line is read
+    i = 0
+    while i < len(lines):
+        if record_heading(lines[i]):
+            if rec_seen:
+                die("second certification record at line %d (first at line %d)"
+                    % (i + 1, rec_seen))
+            rec_seen = i + 1
+            i += 1
+            while i < len(lines) and not lines[i].lstrip().startswith("#"):
+                m = re.match(r"^- flags: (.+)$", lines[i])
+                if m:
+                    if declared is not None:
+                        die("certification record declares flags twice, at lines "
+                            "%d and %d" % (declared[1], i + 1))
+                    declared = (parse_declared_flags(m.group(1).strip(), i + 1),
+                                i + 1)
+                i += 1
+            continue
+        if not is_header(lines, i):
+            i += 1
+            continue
+        head = [c.lower() for c in cells(lines[i])]
+        if not {"kind", "finding"} <= set(head):
+            i += 1
+            continue
+        if seen:
+            die("second disposition table at line %d (first at line %d)" % (i + 1, seen))
+        seen = i + 1
+        at = columns(head, LEDGER_COLUMNS, i + 1)
+        i += 2
+        while i < len(lines) and lines[i].strip().startswith("|") and not is_header(lines, i):
+            row = cells(lines[i])
+            if len(row) != len(head):
+                die("ledger row at line %d has %d cells, expected %d"
+                    % (i + 1, len(row), len(head)))
+            kind = row[at["kind"]].strip().lower()
+            if kind not in LEDGER_KINDS:
+                die("ledger row at line %d: unknown kind %r (expected one of: %s)"
+                    % (i + 1, kind, ", ".join(LEDGER_KINDS)))
+            if not all(row[at[c]].strip() for c in
+                       ("finding", "disposition", "reviewer", "date", "fingerprint")):
+                die("ledger row at line %d needs a finding, a disposition, a "
+                    "reviewer, a date and a fingerprint" % (i + 1))
+            rows.append(tuple(row[at[c]].strip() for c in
+                              ("kind", "finding", "disposition", "reason",
+                               "reviewer", "date", "fingerprint")) + (i + 1,))
+            i += 1
+    if not seen:
+        die("no disposition table in %s (expected columns: %s)"
+            % (path, ", ".join(LEDGER_COLUMNS)))
+    return rows, declared[0] if declared else None
+
+
+def check_flags(args, declared):
+    """--certify replays the recorded review exactly: the invocation's flags
+    must match the ones the ledger's certification record declares, so a run
+    without --source cannot silently skip the span checks."""
+    sample, source = declared
+    if args.sample != sample:
+        die("the ledger's certification record declares --sample %d but "
+            "certification was invoked with --sample %d; replay the recorded "
+            "review exactly (amend the record section to re-review under other "
+            "flags)" % (sample, args.sample))
+    if not args.source and source:
+        die("the ledger's certification record declares --source %s but "
+            "certification was invoked without it; the span checks cannot be "
+            "skipped" % source)
+    if args.source and not source:
+        die("the ledger's certification record declares no --source but "
+            "certification was invoked with --source %s; replay the recorded "
+            "review exactly" % args.source)
+    if args.source and source and args.source != source:
+        die("the ledger's certification record declares --source %s but "
+            "certification was invoked with --source %s; replay the recorded "
+            "review exactly" % (source, args.source))
+
+
+def parse_finding(kind, finding, ln, has_source):
+    """A ledger Finding cell back into its identity key, by kind.
+
+    Interface-row findings read `producer -> consumer: flows`, pairs `A -> B`,
+    boundary findings name the component, spans `L7-9@<source sha256>`. The
+    identity is what drift matching keys on; a cell that cannot be an identity
+    at all is a bad ledger row, not drift.
+    """
+    if kind in ("candidate", "gap"):
+        if " -> " not in finding or ": " not in finding.split(" -> ", 1)[1]:
+            die("ledger row at line %d: %s finding %r must read "
+                "'producer -> consumer: flows'" % (ln, kind, finding))
+        producer, rest = finding.split(" -> ", 1)
+        consumer, flows = rest.split(": ", 1)
+        return (producer.strip(), consumer.strip(), flows.strip())
+    if kind == "pair":
+        if " -> " not in finding:
+            die("ledger row at line %d: pair finding %r must read 'A -> B'"
+                % (ln, finding))
+        a, b = finding.split(" -> ", 1)
+        return (a.strip(), b.strip())
+    if kind == "boundary":
+        return (finding,)
+    if not has_source:
+        die("ledger row at line %d dispositions source span %r but certification "
+            "was invoked without --source" % (ln, finding))
+    label, _, sha = finding.rpartition("@")
+    if not sha or not re.match(r"^L\d+(-\d+)?$", label):
+        die("ledger row at line %d: span finding %r must read "
+            "'L7-9@<source sha256>'" % (ln, finding))
+    first, _, last = label[1:].partition("-")
+    return (sha, int(first), int(last or first))
+
+
+def fingerprint(*parts):
+    """A stable content fingerprint: the sha256 of the parts as canonical JSON."""
+    return hashlib.sha256(json.dumps(list(parts)).encode("utf-8")).hexdigest()
+
+
+def row_fingerprint(iface):
+    """An interface row's full content: its identity cells plus format,
+    trigger, owner and source, so any edit to a dispositioned row is drift."""
+    return fingerprint(iface["producer"], iface["consumer"],
+                       *[iface["attrs"][a] for a in ATTRS], iface["source"])
+
+
+def sha256_file(path):
+    with open(path, "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
+
+
+def sha256_text(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def record_path(ledger_path):
+    """The standalone record file lives beside the ledger."""
+    return (ledger_path[:-3] if ledger_path.endswith(".md") else ledger_path) + ".cert.md"
+
+
+def stamp_ledger_record(ledger_path, record):
+    """Write the record into the ledger's certification-record section,
+    replacing the section a previous pass stamped."""
+    section = "## Certification record" + record[record.index("\n"):]
+    with open(ledger_path, encoding="utf-8") as fh:
+        lines = fh.read().splitlines()
+    out, i, stamped = [], 0, False
+    while i < len(lines):
+        if record_heading(lines[i]):
+            i += 1
+            while i < len(lines) and not lines[i].lstrip().startswith("#"):
+                i += 1
+            out.extend(section.rstrip("\n").split("\n"))
+            stamped = True
+            if i < len(lines):
+                out.append("")
+            continue
+        out.append(lines[i])
+        i += 1
+    if not stamped:
+        if out and out[-1].strip():
+            out.append("")
+        out.extend(section.rstrip("\n").split("\n"))
+    with open(ledger_path, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(out) + "\n")
+
+
+def certify(args, built, rules, spans, rendered):
+    """Judge the ledger against the findings the report derives from the input.
+
+    Returns (record, refused): the record names every blocker — an entry whose
+    finding drifted (gone from the input, or changed since disposition) and
+    every finding no entry covers — plus every advisory, a gap dispositioned
+    open, which may legitimately stay open; refused means exit 3.
+    """
+    names, external, specified, gaps, nones, candidates, retired, class_of = built
+
+    # the ledger keys interface-row findings by producer, consumer and flows,
+    # so two active input rows sharing that identity would be one ambiguous
+    # finding: an input error under --certify (generation is unchanged)
+    first_line = {}
+    for iface in sorted((i for group in (specified, gaps, nones, candidates)
+                         for i in group), key=lambda i: i["line"]):
+        key = (iface["producer"], iface["consumer"], iface["attrs"]["Flows"])
+        if key in first_line:
+            die("input rows at lines %d and %d share one interface identity "
+                "(%s -> %s: %s); the review ledger cannot tell them apart"
+                % (first_line[key], iface["line"], key[0], key[1], key[2]))
+        first_line[key] = iface["line"]
+
+    rows, declared = read_ledger(args.certify)
+    if declared is not None:
+        check_flags(args, declared)
+
+    entries, seen_keys = [], {}
+    for kind, finding, disposition, reason, reviewer, date, fp, ln in rows:
+        key = parse_finding(kind, finding, ln, bool(args.source))
+        if (kind, key) in seen_keys:
+            die("ledger rows at lines %d and %d both disposition %s %r"
+                % (seen_keys[(kind, key)], ln, kind, finding))
+        seen_keys[(kind, key)] = ln
+        entries.append((kind, key, finding, fp, disposition, reason, ln))
+
+    edge_of, stated = edges_of(specified, gaps, nones)
+    internal, unfed, unconsumed, isolated = boundary(
+        names, external, sorted(k for k in edge_of if k[0] != k[1]))
+    residue = settle(unstated_pairs(names, external, stated), edge_of, rules,
+                     class_of)[1]
+    why = {}
+    for group, label in ((unfed, "nothing feeds it"),
+                         (unconsumed, "nothing consumes its output"),
+                         (isolated, "isolated")):
+        for n in group:
+            why[n] = label
+    src_sha = sha256_file(args.source) if args.source else None
+
+    # every finding the gate can refuse on, keyed by stable identity with the
+    # content fingerprint the ledger pins — input line numbers appear only in
+    # the notes, never in the identity, so unrelated edits do not re-open rows
+    found = {}  # (kind, identity) -> (label, fingerprint, note)
+    for c in sorted(candidates, key=lambda c: c["line"]):
+        key = (c["producer"], c["consumer"], c["attrs"]["Flows"])
+        found[("candidate", key)] = ("%s -> %s: %s" % key, row_fingerprint(c),
+                                     "input line %d" % c["line"])
+    for g in sorted(gaps, key=lambda g: g["line"]):
+        key = (g["producer"], g["consumer"], g["attrs"]["Flows"])
+        found[("gap", key)] = ("%s -> %s: %s" % key, row_fingerprint(g),
+                               "input line %d, missing %s"
+                               % (g["line"], ", ".join(g["missing"])))
+    for n in names:
+        if n in why:
+            found[("boundary", (n,))] = (n, fingerprint(n, why[n]), why[n])
+    for a, b in residue:
+        found[("pair", (a, b))] = ("%s -> %s" % (a, b), fingerprint(a, b),
+                                   "no row states it")
+    for s in spans:
+        found[("span", (src_sha, s[0], s[1]))] = (
+            "%s@%s" % (span_label(s), src_sha), fingerprint(src_sha, s[0], s[1]),
+            "of %s" % args.source)
+
+    drifted, unreviewed, advisories, covered = [], [], [], set()
+    for kind, key, label, fp, disposition, reason, ln in entries:
+        f = found.get((kind, key))
+        if f is None:
+            drifted.append("drifted: %s %s (ledger line %d) no longer matches any "
+                           "%s finding in the input" % (KIND_NOUNS[kind], label, ln, kind))
+            continue
+        # the identity still exists: the finding is covered by this entry even
+        # when its content moved, so it is drift, never also unreviewed
+        covered.add((kind, key))
+        if fp != f[1]:
+            drifted.append("drifted: %s %s (ledger line %d) changed since "
+                           "disposition; current fingerprint %s"
+                           % (KIND_NOUNS[kind], label, ln, f[1]))
+        elif kind == "gap" and disposition.lower().startswith("open"):
+            advisories.append("gap %s (%s): %s"
+                              % (label, f[2], " — ".join(
+                                  x for x in (disposition, reason) if x)))
+    for (kind, key), (label, fp, note) in found.items():
+        if (kind, key) not in covered:
+            unreviewed.append("unreviewed: %s %s (%s) %s (fingerprint %s)"
+                              % (KIND_NOUNS[kind], label, note, KIND_VERBS[kind], fp))
+
+    blockers = drifted + unreviewed
+    if blockers:
+        sys.stderr.write("error: certification refused: %d blocker(s) (%d drifted, "
+                         "%d unreviewed), named in the record\n"
+                         % (len(blockers), len(drifted), len(unreviewed)))
+    return (certification_record(args, blockers, advisories,
+                                 sha256_file(args.input), sha256_text(rendered),
+                                 src_sha),
+            bool(blockers))
+
+
+def certification_record(args, blockers, advisories, input_sha, report_sha, src_sha):
+    """The certification record: written beside the ledger as a standalone
+    file, printed, and — after a pass — stamped into the ledger itself. It
+    binds the exact input, report and (when --source ran) source file by
+    sha256, the gate result and the flags the review ran under; a later
+    --certify must replay those flags exactly."""
+    out = ["# Interface matrix certification", ""]
+    out.append("- input: %s (sha256 %s)" % (args.input, input_sha))
+    out.append("- ledger: %s" % args.certify)
+    out.append("- gate: %s" % ("refused" if blockers else "certified"))
+    out.append("- report: sha256 %s" % report_sha)
+    out.append("- flags: --sample %d%s" % (args.sample,
+                                           " --source %s" % args.source if args.source else ""))
+    if src_sha:
+        out.append("- source: %s (sha256 %s)" % (args.source, src_sha))
+    out.append("- blockers: %s" % (len(blockers) if blockers else "none"))
+    out.extend("  - %s" % b for b in blockers)
+    out.append("- advisories: %s" % (len(advisories) if advisories else "none"))
+    out.extend("  - %s" % a for a in advisories)
+    return "\n".join(out) + "\n"
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("input", help="Markdown file with Components and Interfaces tables")
+    ap.add_argument("--certify", metavar="LEDGER",
+                    help="review ledger to certify the input against instead of "
+                         "printing the report: exit 0 with a certification record, "
+                         "exit 3 naming every blocker (drifted or unreviewed), "
+                         "exit 1 on a bad ledger row, a duplicate identity, or "
+                         "flags that do not replay the recorded review (ledger "
+                         "format in the module docstring)")
     ap.add_argument("--sample", type=nonneg, default=20, help="unstated pairs to print (0 = all)")
     ap.add_argument("--source", help="source file whose L<n> citations to check for coverage")
     args = ap.parse_args(argv)
@@ -680,9 +1090,28 @@ def main(argv=None):
     with open(args.input, encoding="utf-8") as fh:
         text = fh.read()
     components, interfaces, rules, cites, has_rules = parse(text)
-    cov = coverage(cites, args.source) if args.source else None
-    sys.stdout.write(report(*build(components, interfaces, rules), rules=rules,
-                            sample_n=args.sample, cov=cov,
+    if args.source:
+        cov, spans = coverage(cites, args.source)
+    else:
+        cov, spans = None, []
+    built = build(components, interfaces, rules)
+    if args.certify:
+        # the gate certifies what the report shows: render it once — coverage
+        # section included when --source ran — so certification dies on the same
+        # invariant (exit 2) and the record can bind the report's sha256; then
+        # judge the ledger against the same derivation. The record replaces the
+        # rendered report on stdout, lands beside the ledger as a standalone
+        # file, and a pass also stamps it into the ledger itself.
+        rendered = report(*built, rules=rules, sample_n=args.sample, cov=cov,
+                          has_rules=has_rules)
+        record, refused = certify(args, built, rules, spans, rendered)
+        with open(record_path(args.certify), "w", encoding="utf-8") as fh:
+            fh.write(record)
+        if not refused:
+            stamp_ledger_record(args.certify, record)
+        sys.stdout.write(record)
+        return 3 if refused else 0
+    sys.stdout.write(report(*built, rules=rules, sample_n=args.sample, cov=cov,
                             has_rules=has_rules))
     return 0
 
