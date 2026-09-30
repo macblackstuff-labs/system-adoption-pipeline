@@ -6,6 +6,9 @@ compatibility: Requires Python 3.9 or newer; standard library only, no third-par
 metadata:
   author: macblackstuff
   version: 0.4.0
+  # Optional model pins — experimental until adapters exist; see "Model pins":
+  # decision, thinker, reviewer, judge, each a model-name string, e.g.
+  # reviewer: "a review model you independently trust"
 ---
 
 # system-adoption-pipeline
@@ -221,6 +224,22 @@ Pass 3's review runs under separation of duties, recorded in the ledger: the rev
 record must be someone other than whatever drafted the input — an independent human
 reviewer by default, a model only when the user explicitly pinned one — and the ledger's
 `Reviewer` column records what actually reviewed.
+
+## Model pins (optional, experimental)
+
+Four optional keys may live under `metadata:` in this file's frontmatter — `decision`,
+`thinker`, `reviewer`, `judge` — each pinning that role to a model, as a plain string
+value (`reviewer: "a review model you independently trust"`). They are instructions to
+the agent executing the skill, not configuration: the Python scripts read no pins, only
+their flags. Experimental until adapters exist. Harness-specific model settings (an
+agent's own `model` or `effort` fields) are non-portable and do not belong here. Pins
+written into an installed copy are overwritten by a `skills add` refresh, so persistent
+pinning means maintaining them in a fork or a local override. A `reviewer` pin names an
+intended reviewer for pass 3's report review and pass 4's class review, still bound by
+pass 3's separation of duties — distinct from whatever drafted the input; the ledger's
+`Reviewer` column records what actually reviewed. The other three name the later passes
+they would run: `thinker` the work packages (pass 5), `decision` the ordering (pass 6),
+`judge` the verification (pass 7).
 
 ## References
 

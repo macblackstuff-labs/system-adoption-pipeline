@@ -194,3 +194,8 @@ replay exactly. A pass also stamps the same record into the ledger as its
 finished deliverable is four files shipped together: the report, its certification record,
 the input, and the ledger — enough for any consumer to re-run certification and check the
 record's sha256 bindings against the files they were sent.
+
+Pinning follows one convention, shared with the `interface-matrix` skill: the optional
+`metadata:` keys a skill's own frontmatter may carry, each pinning a role to a model.
+They are documented once, in this skill's `SKILL.md` ("Model pins"); nothing about pins
+lives in the input file or the ledger.
