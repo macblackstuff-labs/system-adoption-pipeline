@@ -5,4 +5,4 @@ tag v0.4.0
 path skills/interface-matrix/scripts/interface_matrix.py
 sha256 98e5856431c058153714c138583291e0cf8f9f7354caa0891bf3e612c976a70a
 path skills/interface-matrix/scripts/test_interface_matrix.py
-sha256 91581976ce384f953810ffbc420bddf117e21bda9915338507d2bc0770ad3cf6
+sha256 b20b9a9bb02d5da0b3a5a009204ec7e231fc7661b124b6b69b5f01ffeff213f7

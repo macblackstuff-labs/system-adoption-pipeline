@@ -69,6 +69,11 @@ def run(text, *args):
             [sys.executable, SCRIPT, path, *args],
             capture_output=True,
             text=True,
+            # the script reconfigures stdout to UTF-8; decode the same way on
+            # every platform or the em-dashes in record lines mojibake on
+            # legacy Windows codepages (cp437 has none).
+            encoding="utf-8",
+            errors="replace",
         )
     finally:
         os.unlink(path)
@@ -1091,7 +1096,7 @@ def run_in(d, *args):
     return subprocess.run(
         [sys.executable, SCRIPT, os.path.join(d, "inventory.md"),
          "--certify", os.path.join(d, "review.md"), *args],
-        capture_output=True, text=True)
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
 
 
 def cat(d, name):
