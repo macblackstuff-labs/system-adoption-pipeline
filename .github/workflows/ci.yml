@@ -239,7 +239,7 @@ jobs:
       # would get no uv installed and then run `uv run pytest`.
       - name: Set up uv
         if: hashFiles('pyproject.toml', '*/pyproject.toml') != ''
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
       - name: Set up Node
         if: hashFiles('package.json', '*/package.json') != ''
